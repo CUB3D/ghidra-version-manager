@@ -1,19 +1,17 @@
 mod extensions;
 
+use crate::cache::Cacher;
 use crate::extensions::ExtSubcommand;
-use anyhow::{Context, anyhow};
+use anyhow::Context;
+use chrono::Utc;
 use clap::{Parser, Subcommand};
-use futures_util::StreamExt;
-use reqwest::Client;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use std::env::home_dir;
-use std::path::PathBuf;
 use std::process::Command;
-use tokio::io::AsyncWriteExt;
 use tracing::level_filters::LevelFilter;
 use tracing::{debug, error, info};
 use tracing_subscriber::EnvFilter;
+
+pub mod cache;
+pub mod install;
 
 #[derive(Parser, Debug)]
 #[command(version, about, long_about = None)]
@@ -41,15 +39,19 @@ pub enum DefaultSubCmd {
 
 #[derive(Debug, Subcommand)]
 pub enum Cmd {
+    #[command(alias = "ls")]
     /// List the available Ghidra versions
     List,
 
+    #[command(alias = "i")]
     /// Install a Ghidra version
     Install { tag: String },
 
+    #[command(alias = "r")]
     /// Launch Ghidra, unless specified launches the default version
     Run { tag: Option<String> },
 
+    #[command(alias = "del")]
     /// Remove a Ghidra version
     Uninstall { tag: String },
 
@@ -59,69 +61,16 @@ pub enum Cmd {
         cmd: DefaultSubCmd,
     },
 
+    #[command(alias = "u")]
     /// Update the default version
     Update,
 
+    #[command(alias = "e")]
     /// Manage extensions
     Extensions {
         #[clap(subcommand)]
         cmd: ExtSubcommand,
     },
-}
-
-#[derive(Serialize, Deserialize, Default, Debug)]
-pub struct CacheEntry {
-    pub path: PathBuf,
-    pub launcher: PathBuf,
-}
-
-#[derive(Serialize, Deserialize, Debug)]
-pub struct Cache {
-    pub entries: HashMap<String, CacheEntry>,
-    pub default: String,
-    pub latest_known: String,
-}
-
-impl Default for Cache {
-    fn default() -> Self {
-        Self {
-            entries: Default::default(),
-            default: "latest".to_string(),
-            latest_known: "Ghidra_11.3_build".to_string(),
-        }
-    }
-}
-
-pub struct Cacher {
-    pub cache: Cache,
-    pub cache_path: PathBuf,
-}
-
-impl Cacher {
-    pub fn load(cache_path: PathBuf) -> anyhow::Result<Self> {
-        let cache_data = std::fs::read_to_string(&cache_path)
-            .context("Failed to read cache data")
-            .and_then(|s| toml::from_str(&s).context("Failed to parse cache data"))
-            .unwrap_or_default();
-
-        Ok(Self {
-            cache: cache_data,
-            cache_path,
-        })
-    }
-
-    pub fn save(&self) -> anyhow::Result<()> {
-        let s = toml::to_string(&self.cache)?;
-        std::fs::write(&self.cache_path, &s).context("Failed to write cache data")?;
-        Ok(())
-    }
-
-    pub fn default_explicit(&self) -> String {
-        match self.cache.default.as_str() {
-            "latest" => self.cache.latest_known.clone(),
-            _ => self.cache.default.clone(),
-        }
-    }
 }
 
 pub async fn update_latest_version(cacher: &mut Cacher) -> anyhow::Result<()> {
@@ -137,134 +86,15 @@ pub async fn update_latest_version(cacher: &mut Cacher) -> anyhow::Result<()> {
         info!("🚀 New latest version available: {}", v.tag_name);
     }
 
-    cacher.cache.latest_known = v.tag_name;
-    cacher.save()?;
-
-    Ok(())
-}
-
-pub async fn install_version(
-    cacher: &mut Cacher,
-    args: &Args,
-    path: &PathBuf,
-    tag: &String,
-) -> anyhow::Result<()> {
-    if cacher.cache.entries.contains_key(tag) {
-        info!("That version is already installed");
-        return Ok(());
-    }
-
-    let tag = match tag.as_str() {
-        "default" => cacher.default_explicit(),
-        "latest" => cacher.cache.latest_known.clone(),
-        _ => tag.to_string(),
-    };
-
-    let octocrab = octocrab::instance();
-
-    let rel = octocrab
-        .repos("NationalSecurityAgency", "ghidra")
-        .releases()
-        .get_by_tag(&tag)
-        .await?;
-
-    let asset = rel
-        .assets
-        .first()
-        .context("This tag doesn't have an asset attached")?;
-    let url = asset.browser_download_url.clone();
-
-    info!("Downloading: {}", &url);
-
-    let c = Client::new();
-    let mut stream = c.get(url).send().await?.bytes_stream();
-
-    let dl_path = path.join(format!("ghidra_{}.zip", rel.tag_name));
-    debug!("DL path: {:?}", dl_path);
-
-    info!("Saving to: {}", dl_path.as_path().display());
-
-    if dl_path.exists() {
-        info!("Using cached download");
-    } else if !args.offline {
-        let mut dl_file = tokio::fs::OpenOptions::default()
-            .write(true)
-            .truncate(true)
-            .create(true)
-            .open(&dl_path)
-            .await?;
-
-        let pb = indicatif::ProgressBar::new(asset.size as _);
-        while let Some(item) = stream.next().await {
-            let item = &item?;
-            dl_file.write_all(item).await?;
-            pb.inc(item.len() as _);
-        }
-        pb.finish();
-    } else {
-        error!("Offline and no cached version found");
-        return Ok(());
-    }
-
-    info!("Extracting");
-
-    let reader = std::fs::File::open(&dl_path)?;
-    let mut zip = match zip::ZipArchive::new(reader) {
-        Ok(z) => z,
-        Err(e) => {
-            std::fs::remove_file(&dl_path)?;
-            return Err(anyhow!("Could not open zip file, deleting: {e}"));
-        }
-    };
-    zip.extract(path)?;
-
-    let file_name = dl_path.file_name().unwrap().to_str().unwrap();
-    let parts = file_name.split("_").collect::<Vec<&str>>();
-    let version = parts[2];
-    let dir_name = format!("ghidra_{version}_PUBLIC");
-
-    let mut dir_path = dl_path.parent().unwrap().join(dir_name);
-    if !dir_path.exists() {
-        info!("Failed to find extract, trying old style without suffix");
-        let dir_name = format!("ghidra_{version}");
-
-        dir_path = dl_path.parent().unwrap().join(dir_name);
-    }
-
-    std::fs::remove_file(&dl_path).context("Failed to delete zip")?;
-
-    let exec = dir_path.join("ghidraRun").to_string_lossy().to_string();
-    let ico = dir_path
-        .join("support/ghidra.ico")
-        .to_string_lossy()
-        .to_string();
-
-    let desktop = home_dir()
-        .unwrap()
-        .join(".local/share/applications/")
-        .join(format!("ghidra_{version}.desktop"));
-
-    let mut entry = "[Desktop Entry]\n".to_string();
-    entry.push_str(&format!("Name=Ghidra ({version})\n"));
-    entry.push_str("Comment=Ghidra\n");
-    entry.push_str(&format!("Exec={exec}\n"));
-    entry.push_str(&format!("Icon={ico}\n"));
-    std::fs::write(&desktop, entry)?;
-
-    cacher.cache.entries.insert(
-        tag.clone(),
-        CacheEntry {
-            path: dir_path,
-            launcher: desktop,
-        },
-    );
-    cacher.save()?;
+    cacher.with_cache(|c| {
+        c.latest_known = v.tag_name;
+    })?;
 
     Ok(())
 }
 
 // TODO:
-// plugins (rm(all) / updates)
+// ext updates
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -285,7 +115,16 @@ async fn main() -> anyhow::Result<()> {
     let cache_path = path.join("cache.toml");
     let mut cacher = Cacher::load(cache_path)?;
 
-    update_latest_version(&mut cacher).await?;
+    if Utc::now()
+        .signed_duration_since(cacher.cache.last_update_check)
+        .num_hours()
+        > 18
+        || cacher.cache.latest_known.is_empty()
+    {
+        debug!("Checking for updates");
+        update_latest_version(&mut cacher).await?;
+        cacher.with_cache(|c| c.last_update_check = Utc::now())?;
+    }
 
     match &args.cmd {
         Cmd::Extensions { cmd } => {
@@ -298,9 +137,9 @@ async fn main() -> anyhow::Result<()> {
             }
 
             let latest = cacher.cache.latest_known.clone();
-            if !cacher.cache.entries.contains_key(latest.as_str()) {
+            if !cacher.is_installed(&latest) {
                 info!("✨✨✨ New version available: {latest} ✨✨✨");
-                install_version(&mut cacher, &args, &path, &latest).await?;
+                install::install_version(&mut cacher, &args, &path, &latest).await?;
             } else {
                 info!("You have the latest version already!");
             }
@@ -310,11 +149,12 @@ async fn main() -> anyhow::Result<()> {
                 info!("{}", cacher.cache.default);
             }
             DefaultSubCmd::Set { tag } => {
-                cacher.cache.default = tag.clone();
-                cacher.save()?;
+                cacher.with_cache(|c| {
+                    c.default = tag.clone();
+                })?;
 
-                if cacher.cache.entries.contains_key(tag) {
-                    install_version(&mut cacher, &args, &path, tag).await?;
+                if !cacher.is_installed(tag) {
+                    install::install_version(&mut cacher, &args, &path, tag).await?;
                 }
             }
         },
@@ -328,8 +168,10 @@ async fn main() -> anyhow::Result<()> {
             if let Some(cache_entry) = cacher.cache.entries.get(&tag) {
                 std::fs::remove_dir_all(&cache_entry.path).context("Failed to delete directory")?;
                 std::fs::remove_file(&cache_entry.launcher).context("Failed to delete launcher")?;
-                cacher.cache.entries.remove(&tag);
-                cacher.save()?;
+
+                cacher.with_cache(|c| {
+                    c.entries.remove(&tag);
+                })?;
             } else {
                 error!("That version isn't installed");
             }
@@ -340,15 +182,16 @@ async fn main() -> anyhow::Result<()> {
                 None => cacher.default_explicit(),
             };
 
-            if !cacher.cache.entries.contains_key(&tag) {
-                install_version(&mut cacher, &args, &path, &tag).await?;
+            if !cacher.is_installed(&tag) {
+                install::install_version(&mut cacher, &args, &path, &tag).await?;
             }
 
             let path = &cacher.cache.entries.get(&tag).as_ref().unwrap().path;
             let runner = path.join("ghidraRun");
             if !runner.exists() {
-                cacher.cache.entries.remove(&tag);
-                cacher.save()?;
+                cacher.with_cache(|c| {
+                    c.entries.remove(&tag);
+                })?;
                 error!("Failed to find runner, did the installation get removed?");
                 return Ok(());
             }
@@ -356,7 +199,7 @@ async fn main() -> anyhow::Result<()> {
             Command::new(&runner).spawn()?;
         }
         Cmd::Install { tag } => {
-            install_version(&mut cacher, &args, &path, tag).await?;
+            install::install_version(&mut cacher, &args, &path, tag).await?;
         }
         Cmd::List => {
             let octocrab = octocrab::instance();
@@ -390,7 +233,7 @@ async fn main() -> anyhow::Result<()> {
                     info!("--------");
                 } else {
                     let mut out = format!("- {}", c.tag_name);
-                    if cacher.cache.entries.contains_key(&c.tag_name) {
+                    if cacher.is_installed(&c.tag_name) {
                         out.push_str(" [installed]");
                     }
                     if cacher.default_explicit() == c.tag_name {

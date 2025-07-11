@@ -513,6 +513,7 @@ name = "gvm"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "chrono",
  "clap",
  "flate2",
  "futures-util",
