@@ -1,9 +1,13 @@
+mod extensions;
+
+use crate::extensions::ExtSubcommand;
 use anyhow::{Context, anyhow};
 use clap::{Parser, Subcommand};
 use futures_util::StreamExt;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::env::home_dir;
 use std::path::PathBuf;
 use std::process::Command;
 use tokio::io::AsyncWriteExt;
@@ -57,11 +61,18 @@ pub enum Cmd {
 
     /// Update the default version
     Update,
+
+    /// Manage extensions
+    Extensions {
+        #[clap(subcommand)]
+        cmd: ExtSubcommand,
+    },
 }
 
 #[derive(Serialize, Deserialize, Default, Debug)]
 pub struct CacheEntry {
     pub path: PathBuf,
+    pub launcher: PathBuf,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -207,26 +218,53 @@ pub async fn install_version(
     };
     zip.extract(path)?;
 
-    let dir_name = {
-        let file_name = dl_path.file_name().unwrap().to_str().unwrap();
-        let parts = file_name.split("_").collect::<Vec<&str>>();
-        let version = parts[2];
-        format!("ghidra_{version}_PUBLIC")
-    };
-    let dir_path = dl_path.parent().unwrap().join(dir_name);
+    let file_name = dl_path.file_name().unwrap().to_str().unwrap();
+    let parts = file_name.split("_").collect::<Vec<&str>>();
+    let version = parts[2];
+    let dir_name = format!("ghidra_{version}_PUBLIC");
+
+    let mut dir_path = dl_path.parent().unwrap().join(dir_name);
+    if !dir_path.exists() {
+        info!("Failed to find extract, trying old style without suffix");
+        let dir_name = format!("ghidra_{version}");
+
+        dir_path = dl_path.parent().unwrap().join(dir_name);
+    }
+
     std::fs::remove_file(&dl_path).context("Failed to delete zip")?;
 
-    cacher
-        .cache
-        .entries
-        .insert(tag.clone(), CacheEntry { path: dir_path });
+    let exec = dir_path.join("ghidraRun").to_string_lossy().to_string();
+    let ico = dir_path
+        .join("support/ghidra.ico")
+        .to_string_lossy()
+        .to_string();
+
+    let desktop = home_dir()
+        .unwrap()
+        .join(".local/share/applications/")
+        .join(format!("ghidra_{version}.desktop"));
+
+    let mut entry = "[Desktop Entry]\n".to_string();
+    entry.push_str(&format!("Name=Ghidra ({version})\n"));
+    entry.push_str("Comment=Ghidra\n");
+    entry.push_str(&format!("Exec={exec}\n"));
+    entry.push_str(&format!("Icon={ico}\n"));
+    std::fs::write(&desktop, entry)?;
+
+    cacher.cache.entries.insert(
+        tag.clone(),
+        CacheEntry {
+            path: dir_path,
+            launcher: desktop,
+        },
+    );
     cacher.save()?;
 
     Ok(())
 }
 
-//TODOS:
-// plugins (install (all) / rm(all) )
+// TODO:
+// plugins (rm(all) / updates)
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -250,6 +288,9 @@ async fn main() -> anyhow::Result<()> {
     update_latest_version(&mut cacher).await?;
 
     match &args.cmd {
+        Cmd::Extensions { cmd } => {
+            extensions::handle_ext_cmd(&mut cacher, &path, &args, cmd).await?;
+        }
         Cmd::Update => {
             if cacher.cache.default != "latest" {
                 error!("Can't update when default is a fixed version");
@@ -286,6 +327,7 @@ async fn main() -> anyhow::Result<()> {
 
             if let Some(cache_entry) = cacher.cache.entries.get(&tag) {
                 std::fs::remove_dir_all(&cache_entry.path).context("Failed to delete directory")?;
+                std::fs::remove_file(&cache_entry.launcher).context("Failed to delete launcher")?;
                 cacher.cache.entries.remove(&tag);
                 cacher.save()?;
             } else {

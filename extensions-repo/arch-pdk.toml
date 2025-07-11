@@ -1,0 +1,6 @@
+name = "PDK"
+slug = "pdk"
+repo_user = "CUB3D"
+repo_repo = "ghidra-pdk"
+
+kind="ProcessorGit"

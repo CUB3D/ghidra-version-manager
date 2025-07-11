@@ -1,0 +1,6 @@
+name = "Hexagon"
+slug = "hexagon"
+repo_user = "CUB3D"
+repo_repo = "ghidra-hexagon-sleigh"
+
+kind="ProcessorGit"

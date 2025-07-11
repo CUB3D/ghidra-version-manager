@@ -1,0 +1,6 @@
+name = "Amiga"
+slug = "amiga"
+repo_user = "BartmanAbyss"
+repo_repo = "ghidra-amiga"
+
+kind="DownloadOnly"
