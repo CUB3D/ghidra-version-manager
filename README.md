@@ -1,6 +1,8 @@
 # GVM
 Ghidra Version Manager is a utility to manage and update your Ghidra versions and extensions
 
+Currently supports Linux and macOS
+
 ## Installing
 ```shell
 cargo install --git https://github.com/CUB3D/ghidra-version-manager
