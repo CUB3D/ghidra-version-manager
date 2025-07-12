@@ -1,0 +1,6 @@
+name = "NTR"
+slug = "loader-ntr"
+repo_user = "pedro-javierf"
+repo_repo = "NTRGhidra"
+
+kind="DownloadOnly"

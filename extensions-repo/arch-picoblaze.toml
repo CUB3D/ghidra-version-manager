@@ -1,5 +1,5 @@
 name = "PicoBlaze"
-slug = "picoblaze"
+slug = "arch-picoblaze"
 repo_user = "CUB3D"
 repo_repo = "ghidra-picoblaze"
 

@@ -1,5 +1,5 @@
 name = "Hexagon"
-slug = "hexagon"
+slug = "arch-hexagon"
 repo_user = "CUB3D"
 repo_repo = "ghidra-hexagon-sleigh"
 

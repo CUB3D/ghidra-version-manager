@@ -5,6 +5,10 @@ Ghidra Version Manager is a utility to manage and update your Ghidra versions an
 ```shell
 cargo install --git https://github.com/CUB3D/ghidra-version-manager
 ```
+
+This will download and extract the selected version. On linux it will create a `.desktop` entry as well.
+On MacOS it will create a launcher app in `/Applications` for spotlight integration.
+
 # Usage
 In places where a version is specified you can also use "default" for your selected default version or "latest" for the latest release
 

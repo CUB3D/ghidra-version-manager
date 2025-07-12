@@ -1,0 +1,6 @@
+name = "Delinker"
+slug = "exporter-delinker"
+repo_user = "boricj"
+repo_repo = "ghidra-delinker-extension"
+
+kind="DownloadOnly"

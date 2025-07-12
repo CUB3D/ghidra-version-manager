@@ -1,0 +1,6 @@
+name = "XBE"
+slug = "loader-xbe"
+repo_user = "XboxDev"
+repo_repo = "ghidra-xbe"
+
+kind="DownloadOnly"

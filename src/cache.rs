@@ -14,7 +14,7 @@ pub struct ExtEntry {
 #[derive(Serialize, Deserialize, Default, Debug)]
 pub struct CacheEntry {
     pub path: PathBuf,
-    pub launcher: PathBuf,
+    pub launcher: Option<PathBuf>,
     pub extensions: HashMap<String, ExtEntry>,
 }
 

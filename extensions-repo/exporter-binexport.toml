@@ -1,0 +1,6 @@
+name = "Binexport"
+slug = "exporter-binexport"
+repo_user = "google"
+repo_repo = "binexport"
+
+kind="DownloadOnly"

@@ -1,12 +1,13 @@
-use std::{env::home_dir, path::PathBuf};
-
 use anyhow::Context;
 use anyhow::anyhow;
 use futures_util::StreamExt;
+use ico::IconDir;
 use reqwest::Client;
+use std::fs::{File, Permissions};
+use std::os::unix::fs::PermissionsExt;
+use std::{env::home_dir, path::PathBuf};
 use tokio::io::AsyncWriteExt;
 use tracing::{debug, error, info};
-
 use crate::{
     Args,
     cache::{CacheEntry, Cacher},
@@ -49,9 +50,9 @@ pub async fn install_version(
     let mut stream = c.get(url).send().await?.bytes_stream();
 
     let dl_path = path.join(format!("ghidra_{}.zip", rel.tag_name));
-    debug!("DL path: {:?}", dl_path);
+    debug!("DL path  {:?}", dl_path);
 
-    info!("Saving to: {}", dl_path.as_path().display());
+    info!("Saving to {}", dl_path.as_path().display());
 
     if dl_path.exists() {
         info!("Using cached download");
@@ -75,9 +76,9 @@ pub async fn install_version(
         return Ok(());
     }
 
-    info!("Extracting");
+    info!("Extracting to {}", path.display());
 
-    let reader = std::fs::File::open(&dl_path)?;
+    let reader = File::open(&dl_path)?;
     let mut zip = match zip::ZipArchive::new(reader) {
         Ok(z) => z,
         Err(e) => {
@@ -85,7 +86,13 @@ pub async fn install_version(
             return Err(anyhow!("Could not open zip file, deleting: {e}"));
         }
     };
-    zip.extract(path)?;
+    match zip.extract(path) {
+        Ok(_) => {}
+        Err(e) => {
+            std::fs::remove_file(&dl_path)?;
+            return Err(anyhow!("Could not extract zip file, deleting: {e}"));
+        }
+    }
 
     let file_name = dl_path.file_name().unwrap().to_str().unwrap();
     let parts = file_name.split("_").collect::<Vec<&str>>();
@@ -100,25 +107,62 @@ pub async fn install_version(
         dir_path = dl_path.parent().unwrap().join(dir_name);
     }
 
-    std::fs::remove_file(&dl_path).context("Failed to delete zip")?;
-
     let exec = dir_path.join("ghidraRun").to_string_lossy().to_string();
     let ico = dir_path
         .join("support/ghidra.ico")
         .to_string_lossy()
         .to_string();
 
-    let desktop = home_dir()
-        .unwrap()
-        .join(".local/share/applications/")
-        .join(format!("ghidra_{version}.desktop"));
+    // Create desktop entries on linux
+    let desktop = if cfg!(target_os = "linux") {
+        let desktop = home_dir()
+            .unwrap()
+            .join(".local/share/applications/")
+            .join(format!("ghidra_{version}.desktop"));
 
-    let mut entry = "[Desktop Entry]\n".to_string();
-    entry.push_str(&format!("Name=Ghidra ({version})\n"));
-    entry.push_str("Comment=Ghidra\n");
-    entry.push_str(&format!("Exec={exec}\n"));
-    entry.push_str(&format!("Icon={ico}\n"));
-    std::fs::write(&desktop, entry)?;
+        let mut entry = "[Desktop Entry]\n".to_string();
+        entry.push_str(&format!("Name=Ghidra ({version})\n"));
+        entry.push_str("Comment=Ghidra\n");
+        entry.push_str(&format!("Exec={exec}\n"));
+        entry.push_str(&format!("Icon={ico}\n"));
+        std::fs::write(&desktop, entry)?;
+
+        Some(desktop)
+    } else if cfg!(target_os = "macos") {
+        let base = PathBuf::from("/Applications");
+        let name = format!("Ghidra_{version}");
+        let app = base.join(format!("{name}.app"));
+        std::fs::create_dir_all(&app)?;
+        let bin = app.join(&name);
+        let mut script = "#!/bin/sh -i\n".to_string();
+        script.push_str("/Users/cub3d/.local/opt/gvm/ghidra_9.0.1/ghidraRun");
+        std::fs::write(&bin, script).expect("Failed to write to script file");
+        std::fs::set_permissions(bin, Permissions::from_mode(0o744))?;
+
+        let cont = app.join("Contents");
+        let res = cont.join("Resources");
+        std::fs::create_dir_all(&res)?;
+        let info = cont.join("Info.plist");
+        let res = res.join("Icon.png");
+
+        let plist = include_str!("../res/macos_plist.plist")
+            .to_string()
+            .replace("{name}", &name)
+            .replace("{version}", version);
+
+        std::fs::write(&info, plist.as_bytes()).expect("Failed to write to script file");
+
+        let icofile = File::open(&ico)?;
+        let ico = IconDir::read(icofile)?;
+        let image = ico.entries()[0].decode()?;
+
+        let file = std::fs::File::create(res)?;
+        image.write_png(&file)?;
+
+        Some(app)
+    } else {
+        None
+    };
 
     cacher.with_cache(|c| {
         c.entries.insert(
@@ -130,6 +174,8 @@ pub async fn install_version(
             },
         );
     })?;
+
+    std::fs::remove_file(&dl_path).context("Failed to delete zip")?;
 
     Ok(())
 }

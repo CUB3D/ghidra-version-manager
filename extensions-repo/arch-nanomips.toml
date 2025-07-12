@@ -1,0 +1,6 @@
+name = "NanoMips"
+slug = "arch-nanomips"
+repo_user = "nccgroup"
+repo_repo = "ghidra-nanomips"
+
+kind="ProcessorGit"

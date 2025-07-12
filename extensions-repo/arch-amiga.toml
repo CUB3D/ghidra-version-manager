@@ -1,5 +1,5 @@
 name = "Amiga"
-slug = "amiga"
+slug = "arch-amiga"
 repo_user = "BartmanAbyss"
 repo_repo = "ghidra-amiga"
 

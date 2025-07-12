@@ -1,0 +1,6 @@
+name = "Findcrypt"
+slug = "tool-findcrypt"
+repo_user = "antoniovazquezblanco"
+repo_repo = "GhidraFindcrypt"
+
+kind="DownloadOnly"

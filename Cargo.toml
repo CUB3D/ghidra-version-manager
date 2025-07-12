@@ -14,10 +14,11 @@ reqwest = { version = "=0.12.22", default-features = false, features = ["stream"
 futures-util = { version = "0.3.31", default-features = false, features = ["std"] }
 indicatif = { version = "=0.18.0", default-features = false, features = ["improved_unicode"] }
 zip = { version = "=4.3.0", default-features = false, features = ["deflate"] }
-toml = { version = "=0.9.1", default-features = false, features = ["std", "display", "parse", "serde"] }
+toml = { version = "=0.9.2", default-features = false, features = ["std", "display", "parse", "serde"] }
 serde = { version = "=1.0.219", default-features = false, features = ["derive", "std"]}
-chrono = "*"
+chrono = "=0.4.41"
 
 include_directory = {version = "=0.1.1", default-features = false, features = ["glob"]}
 flate2 = {version = "=1.1.2", default-features = false, features = ["zlib-rs"]}
-tar = {version = "0.4.44", default-features = false, features = []}
+tar = {version = "=0.4.44", default-features = false, features = []}
+ico = {version = "=0.4.0" }

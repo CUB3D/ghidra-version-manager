@@ -167,7 +167,13 @@ async fn main() -> anyhow::Result<()> {
 
             if let Some(cache_entry) = cacher.cache.entries.get(&tag) {
                 std::fs::remove_dir_all(&cache_entry.path).context("Failed to delete directory")?;
-                std::fs::remove_file(&cache_entry.launcher).context("Failed to delete launcher")?;
+                if let Some(launcher) = &cache_entry.launcher {
+                    if std::fs::metadata(launcher)?.is_dir() {
+                        std::fs::remove_dir_all(launcher).context("Failed to delete launcher")?;
+                    } else {
+                        std::fs::remove_file(launcher).context("Failed to delete launcher")?;
+                    }
+                }
 
                 cacher.with_cache(|c| {
                     c.entries.remove(&tag);
