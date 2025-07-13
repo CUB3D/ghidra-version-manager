@@ -10,7 +10,7 @@ tracing-subscriber = { version = "=0.3.19", default-features = false, features =
 tracing = { version = "=0.1.41", default-features = false, features = ["std"] }
 clap = { version = "=4.5.41", default-features = false, features = ["derive", "std", "color", "error-context", "unicode", "usage", "suggestions", "help", "deprecated"] }
 anyhow = { version = "=1.0.98", default-features = false, features = ["std", "backtrace"] }
-reqwest = { version = "=0.12.22", default-features = false, features = ["stream", "rustls-tls"] }
+reqwest = { version = "=0.12.22", default-features = false, features = ["stream", "rustls-tls", "gzip", "deflate", "brotli", "zstd"] }
 futures-util = { version = "0.3.31", default-features = false, features = ["std"] }
 indicatif = { version = "=0.18.0", default-features = false, features = ["improved_unicode"] }
 zip = { version = "=4.3.0", default-features = false, features = ["deflate"] }

@@ -19,16 +19,37 @@ static EXTENSIONS: Dir = include_directory!("./extensions-repo");
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ExtKind {
+    /// Only download latest releases
     DownloadOnly,
+
+    /// A processor module that should be cloned directly
     ProcessorGit,
 }
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ExtDef {
+    /// The name of the module
     pub name: String,
+
+    /// The GitHub user to pull from
     pub repo_user: String,
+
+    /// The GitHub repo to pull from
     pub repo_repo: String,
+
+    /// Unique id for extension
     pub slug: String,
+
+    /// The type of module
     pub kind: ExtKind,
+
+    /// For git processor modules should the root files in the git be taken as the root of the module
+    /// This will create Processors/<name>/<git contents> directly
+    /// Without this we assume that the git stores /<name>/<module> and install <module> to Processors/<name>/
+    /// With this we assume that the git stores /<module> and install <module> to Processors/<name>/
+    pub no_prefix: Option<bool>,
+
+    /// What branch to checkout for git modules
+    pub branch_name: Option<String>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -179,8 +200,10 @@ pub(crate) async fn handle_ext_cmd(
                 ExtKind::ProcessorGit => {
                     info!("Installing git processor extension");
                     let url = Url::parse(&format!(
-                        "https://api.github.com/repos/{}/{}/tarball/master",
-                        entry.repo_user, entry.repo_repo
+                        "https://api.github.com/repos/{}/{}/tarball/{}",
+                        entry.repo_user,
+                        entry.repo_repo,
+                        entry.branch_name.unwrap_or("master".to_string())
                     ))?;
 
                     let dl_path = path.join(format!("{}.tar.gz", entry.slug));
@@ -243,15 +266,20 @@ pub(crate) async fn handle_ext_cmd(
                     for file in a.entries()? {
                         let mut file = file?;
                         let out_path = file.header().path()?;
-                        if out_path.ends_with(format!("{}/", entry.name)) {
-                            tmp = out_path.to_string_lossy().to_string();
-                        }
 
                         if tmp.is_empty() {
+                            if entry.no_prefix.unwrap_or_default() {
+                                if file.header().entry_type() == EntryType::Directory {
+                                    tmp = out_path.to_string_lossy().to_string();
+                                }
+                            } else if out_path.ends_with(format!("{}/", entry.name)) {
+                                tmp = out_path.to_string_lossy().to_string();
+                            }
+
                             continue;
                         }
 
-                        // println!("{:?}", tmp);
+                        // println!("ext {:?}", out_path);
 
                         if file.header().entry_type() == EntryType::Regular {
                             let out_path = file.header().path()?;

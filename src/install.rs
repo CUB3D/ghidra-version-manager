@@ -1,3 +1,7 @@
+use crate::{
+    Args,
+    cache::{CacheEntry, Cacher},
+};
 use anyhow::Context;
 use anyhow::anyhow;
 use futures_util::StreamExt;
@@ -5,13 +9,10 @@ use ico::IconDir;
 use reqwest::Client;
 use std::fs::{File, Permissions};
 use std::os::unix::fs::PermissionsExt;
+use std::time::Duration;
 use std::{env::home_dir, path::PathBuf};
 use tokio::io::AsyncWriteExt;
 use tracing::{debug, error, info};
-use crate::{
-    Args,
-    cache::{CacheEntry, Cacher},
-};
 
 pub async fn install_version(
     cacher: &mut Cacher,
@@ -46,7 +47,14 @@ pub async fn install_version(
 
     info!("Downloading: {}", &url);
 
-    let c = Client::new();
+    let c = Client::builder()
+        .gzip(true)
+        .deflate(true)
+        .zstd(true)
+        .brotli(true)
+        .timeout(Duration::from_secs(45))
+        .build()?;
+
     let mut stream = c.get(url).send().await?.bytes_stream();
 
     let dl_path = path.join(format!("ghidra_{}.zip", rel.tag_name));
@@ -66,8 +74,8 @@ pub async fn install_version(
 
         let pb = indicatif::ProgressBar::new(asset.size as _);
         while let Some(item) = stream.next().await {
-            let item = &item?;
-            dl_file.write_all(item).await?;
+            let item = item?;
+            dl_file.write_all(&item).await?;
             pb.inc(item.len() as _);
         }
         pb.finish();

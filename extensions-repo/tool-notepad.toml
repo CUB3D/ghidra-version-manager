@@ -1,0 +1,6 @@
+name = "MarkdownNotepad"
+slug = "tool-markdownnotepad"
+repo_user = "lr-m"
+repo_repo = "Ghidra-Markdown-Notepad"
+
+kind="DownloadOnly"

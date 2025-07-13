@@ -1,0 +1,8 @@
+name = "NDS32"
+slug = "arch-nds32"
+repo_user = "kagaimiq"
+repo_repo = "ghidra-nds32"
+
+branch_name="main"
+no_prefix=true
+kind="ProcessorGit"
