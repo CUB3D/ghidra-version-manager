@@ -123,10 +123,9 @@ pub async fn install_version(
 
     // Create desktop entries on linux
     let desktop = if cfg!(target_os = "linux") {
-        let desktop = home_dir()
-            .unwrap()
-            .join(".local/share/applications/")
-            .join(format!("ghidra_{version}.desktop"));
+        let app_dir = home_dir().unwrap().join(".local/share/applications/");
+        let _ = std::fs::create_dir_all(&app_dir);
+        let desktop = app_dir.join(format!("ghidra_{version}.desktop"));
 
         let mut entry = "[Desktop Entry]\n".to_string();
         entry.push_str(&format!("Name=Ghidra ({version})\n"));
