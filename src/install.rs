@@ -102,6 +102,8 @@ pub async fn install_version(
         }
     }
 
+    info!("Creating application launcher entries");
+
     let file_name = dl_path.file_name().unwrap().to_str().unwrap();
     let parts = file_name.split("_").collect::<Vec<&str>>();
     let version = parts[2];
@@ -159,11 +161,11 @@ pub async fn install_version(
 
         std::fs::write(&info, plist.as_bytes()).expect("Failed to write to script file");
 
-        let icofile = File::open(&ico)?;
-        let ico = IconDir::read(icofile)?;
+        let ico_file = File::open(&ico)?;
+        let ico = IconDir::read(ico_file)?;
         let image = ico.entries()[0].decode()?;
 
-        let file = std::fs::File::create(res)?;
+        let file = File::create(res)?;
         image.write_png(&file)?;
 
         Some(app)

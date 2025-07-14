@@ -48,7 +48,7 @@ pub struct ExtDef {
     /// With this we assume that the git stores /<module> and install <module> to Processors/<name>/
     pub no_prefix: Option<bool>,
 
-    /// What branch to checkout for git modules
+    /// Which branch to checkout for git modules
     pub branch_name: Option<String>,
 }
 
@@ -316,7 +316,7 @@ pub(crate) async fn handle_ext_cmd(
         ExtSubcommand::List => {
             info!("Known extensions:");
             for e in EXTENSIONS.entries() {
-                let entry = toml::from_slice::<ExtDef>(e.as_file().unwrap().contents()).unwrap();
+                let entry = toml::from_slice::<ExtDef>(e.as_file().unwrap().contents())?;
                 info!("- {}", entry.name);
             }
         }

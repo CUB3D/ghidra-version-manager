@@ -1,0 +1,6 @@
+name = "AssistMCP"
+slug = "tool-assistmcp"
+repo_user = "jtang613"
+repo_repo = "GhidrAssistMCP"
+
+kind="DownloadOnly"

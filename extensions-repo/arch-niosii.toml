@@ -1,0 +1,6 @@
+name = "niosII"
+slug = "arch-nios2"
+repo_user = "jtang613"
+repo_repo = "ghidra_processor_nios_II"
+
+kind="DownloadOnly"

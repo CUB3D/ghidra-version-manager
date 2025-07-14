@@ -1,0 +1,8 @@
+name = "iRISC"
+slug = "arch-irisc"
+repo_user = "irisc-research-syndicate"
+repo_repo = "ghidra-processor"
+
+branch_name="master"
+no_prefix=true
+kind="ProcessorGit"
