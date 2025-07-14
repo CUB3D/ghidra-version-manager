@@ -52,7 +52,7 @@ pub async fn install_version(
         .deflate(true)
         .zstd(true)
         .brotli(true)
-        .timeout(Duration::from_secs(45))
+        .timeout(Duration::from_secs(300))
         .build()?;
 
     let mut stream = c.get(url).send().await?.bytes_stream();

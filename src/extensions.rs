@@ -104,7 +104,13 @@ pub(crate) async fn handle_ext_cmd(
             let ghidra_version = ghidra_version.clone().unwrap_or(cacher.default_explicit());
             let ext_def = find_by_name(name)?;
 
-            let ent = cacher.cache.entries.get_mut(&ghidra_version).unwrap();
+            let ent = match cacher.cache.entries.get_mut(&ghidra_version) {
+                Some(e) => e,
+                None => {
+                    error!("Version {ghidra_version} isn't installed");
+                    return Ok(());
+                }
+            };
             let ext = ent.extensions.get(&ext_def.slug).cloned().unwrap();
             ent.extensions.remove(&ext_def.slug);
             cacher.save()?;
