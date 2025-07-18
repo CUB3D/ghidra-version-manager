@@ -117,7 +117,15 @@ pub async fn install_version(
         dir_path = dl_path.parent().unwrap().join(dir_name);
     }
 
-    let exec = dir_path.join("ghidraRun").to_string_lossy().to_string();
+    let exec = if cacher.cache.prefs.pyghidra {
+        dir_path
+            .join("support/pyghidraRun")
+            .to_string_lossy()
+            .to_string()
+    } else {
+        dir_path.join("ghidraRun").to_string_lossy().to_string()
+    };
+
     let ico = dir_path
         .join("support/ghidra.ico")
         .to_string_lossy()
@@ -144,7 +152,7 @@ pub async fn install_version(
         std::fs::create_dir_all(&app)?;
         let bin = app.join(&name);
         let mut script = "#!/bin/sh -i\n".to_string();
-        script.push_str("/Users/cub3d/.local/opt/gvm/ghidra_9.0.1/ghidraRun");
+        script.push_str(&exec);
         std::fs::write(&bin, script).expect("Failed to write to script file");
         std::fs::set_permissions(bin, Permissions::from_mode(0o744))?;
 

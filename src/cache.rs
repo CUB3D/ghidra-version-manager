@@ -5,6 +5,7 @@ use std::{collections::HashMap, path::PathBuf};
 use anyhow::Context;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
+use tracing::error;
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct ExtEntry {
@@ -18,12 +19,19 @@ pub struct CacheEntry {
     pub extensions: HashMap<String, ExtEntry>,
 }
 
+#[derive(Serialize, Deserialize, Debug, Default)]
+pub struct Prefs {
+    pub pyghidra: bool,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Cache {
     pub entries: HashMap<String, CacheEntry>,
     pub default: String,
     pub latest_known: String,
     pub last_update_check: DateTime<Utc>,
+    #[serde(default)]
+    pub prefs: Prefs,
 }
 
 impl Default for Cache {
@@ -33,6 +41,7 @@ impl Default for Cache {
             default: "latest".to_string(),
             latest_known: "".to_string(),
             last_update_check: Utc::now(),
+            prefs: Prefs::default(),
         }
     }
 }
@@ -44,10 +53,16 @@ pub struct Cacher {
 
 impl Cacher {
     pub fn load(cache_path: PathBuf) -> anyhow::Result<Self> {
-        let cache_data = std::fs::read_to_string(&cache_path)
+        let cache_data = match std::fs::read_to_string(&cache_path)
             .context("Failed to read cache data")
             .and_then(|s| toml::from_str(&s).context("Failed to parse cache data"))
-            .unwrap_or_default();
+        {
+            Ok(c) => c,
+            Err(e) => {
+                error!("Failed to load old cache {e}");
+                Cache::default()
+            }
+        };
 
         Ok(Self {
             cache: cache_data,

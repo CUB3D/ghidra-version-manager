@@ -38,6 +38,21 @@ pub enum DefaultSubCmd {
 }
 
 #[derive(Debug, Subcommand)]
+pub enum PrefsSubCmd {
+    /// Display the current prefs
+    Show,
+
+    /// Set the prefs
+    Set {
+        /// The key to set
+        key: String,
+
+        /// The new value
+        value: String,
+    },
+}
+
+#[derive(Debug, Subcommand)]
 pub enum Cmd {
     #[command(alias = "ls")]
     /// List the available Ghidra versions
@@ -59,6 +74,12 @@ pub enum Cmd {
     Default {
         #[clap(subcommand)]
         cmd: DefaultSubCmd,
+    },
+
+    // Manage preferences
+    Prefs {
+        #[clap(subcommand)]
+        cmd: PrefsSubCmd,
     },
 
     #[command(alias = "u")]
@@ -157,6 +178,24 @@ async fn main() -> anyhow::Result<()> {
                     install::install_version(&mut cacher, &args, &path, tag).await?;
                 }
             }
+        },
+        Cmd::Prefs { cmd } => match cmd {
+            PrefsSubCmd::Show => {
+                let yn = if cacher.cache.prefs.pyghidra {
+                    "yes"
+                } else {
+                    "no"
+                };
+                info!("Use PyGhidra in launchers? [{yn}]")
+            }
+            PrefsSubCmd::Set { key, value } => match key.as_str() {
+                "py3" => {
+                    cacher.with_cache(|c: &mut cache::Cache| {
+                        c.prefs.pyghidra = *value == "true";
+                    })?;
+                }
+                _ => error!("Unknown key"),
+            },
         },
         Cmd::Uninstall { tag } => {
             let tag = match tag.as_str() {
