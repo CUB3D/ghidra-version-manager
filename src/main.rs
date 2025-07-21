@@ -5,6 +5,7 @@ use crate::extensions::ExtSubcommand;
 use anyhow::Context;
 use chrono::Utc;
 use clap::{Parser, Subcommand};
+use notify_rust::Notification;
 use std::process::Command;
 use tracing::level_filters::LevelFilter;
 use tracing::{debug, error, info};
@@ -26,6 +27,10 @@ pub struct Args {
     /// Disable network access
     #[arg(short, long, default_value = "false")]
     pub offline: bool,
+
+    /// Run in launcher mode
+    #[arg(short, long, default_value = "false")]
+    launcher: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -94,7 +99,7 @@ pub enum Cmd {
     },
 }
 
-pub async fn update_latest_version(cacher: &mut Cacher) -> anyhow::Result<()> {
+pub async fn update_latest_version(cacher: &mut Cacher) -> anyhow::Result<bool> {
     let octocrab = octocrab::instance();
 
     let v = octocrab
@@ -105,13 +110,14 @@ pub async fn update_latest_version(cacher: &mut Cacher) -> anyhow::Result<()> {
 
     if cacher.cache.latest_known != v.tag_name {
         info!("🚀 New latest version available: {}", v.tag_name);
+        return Ok(true);
     }
 
     cacher.with_cache(|c| {
         c.latest_known = v.tag_name;
     })?;
 
-    Ok(())
+    Ok(false)
 }
 
 // TODO:
@@ -143,7 +149,13 @@ async fn main() -> anyhow::Result<()> {
         || cacher.cache.latest_known.is_empty()
     {
         debug!("Checking for updates");
-        update_latest_version(&mut cacher).await?;
+
+        if update_latest_version(&mut cacher).await? && args.launcher {
+            let _ = Notification::new()
+                .summary("New ghidra version available")
+                .icon("ghidra")
+                .show()?;
+        }
         cacher.with_cache(|c| c.last_update_check = Utc::now())?;
     }
 
@@ -232,7 +244,12 @@ async fn main() -> anyhow::Result<()> {
             }
 
             let path = &cacher.cache.entries.get(&tag).as_ref().unwrap().path;
-            let runner = path.join("ghidraRun");
+            let runner = if cacher.cache.prefs.pyghidra {
+                path.join("support/pyghidraRun")
+            } else {
+                path.join("ghidraRun")
+            };
+
             if !runner.exists() {
                 cacher.with_cache(|c| {
                     c.entries.remove(&tag);

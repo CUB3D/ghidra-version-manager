@@ -117,14 +117,9 @@ pub async fn install_version(
         dir_path = dl_path.parent().unwrap().join(dir_name);
     }
 
-    let exec = if cacher.cache.prefs.pyghidra {
-        dir_path
-            .join("support/pyghidraRun")
-            .to_string_lossy()
-            .to_string()
-    } else {
-        dir_path.join("ghidraRun").to_string_lossy().to_string()
-    };
+    let us = std::env::current_exe()?;
+
+    let exec = format!("{} --launcher run {tag}", us.to_string_lossy());
 
     let ico = dir_path
         .join("support/ghidra.ico")
@@ -142,6 +137,7 @@ pub async fn install_version(
         entry.push_str("Comment=Ghidra\n");
         entry.push_str(&format!("Exec={exec}\n"));
         entry.push_str(&format!("Icon={ico}\n"));
+        entry.push_str("Type=Application\n");
         std::fs::write(&desktop, entry)?;
 
         Some(desktop)
