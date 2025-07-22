@@ -20,6 +20,7 @@ pub async fn install_version(
     path: &PathBuf,
     tag: &String,
 ) -> anyhow::Result<()> {
+    debug!("Installing tag '{tag}'");
     if cacher.cache.entries.contains_key(tag) {
         info!("That version is already installed");
         return Ok(());
@@ -30,6 +31,7 @@ pub async fn install_version(
         "latest" => cacher.cache.latest_known.clone(),
         _ => tag.to_string(),
     };
+    debug!("Installing actual tag '{tag}'");
 
     let octocrab = octocrab::instance();
 

@@ -5,7 +5,7 @@ use std::{collections::HashMap, path::PathBuf};
 use anyhow::Context;
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use tracing::error;
+use tracing::{error, info};
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct ExtEntry {
@@ -53,14 +53,19 @@ pub struct Cacher {
 
 impl Cacher {
     pub fn load(cache_path: PathBuf) -> anyhow::Result<Self> {
-        let cache_data = match std::fs::read_to_string(&cache_path)
-            .context("Failed to read cache data")
-            .and_then(|s| toml::from_str(&s).context("Failed to parse cache data"))
-        {
-            Ok(c) => c,
-            Err(e) => {
-                error!("Failed to load old cache {e}");
-                Cache::default()
+        let cache_data = if !std::fs::exists(&cache_path).unwrap_or(false) {
+            info!("No cache found, it will be created");
+            Cache::default()
+        } else {
+            match std::fs::read_to_string(&cache_path)
+                .context("Failed to read cache data")
+                .and_then(|s| toml::from_str(&s).context("Failed to parse cache data"))
+            {
+                Ok(c) => c,
+                Err(e) => {
+                    error!("Failed to load old cache {e}");
+                    Cache::default()
+                }
             }
         };
 

@@ -110,12 +110,13 @@ pub async fn update_latest_version(cacher: &mut Cacher) -> anyhow::Result<bool> 
 
     if cacher.cache.latest_known != v.tag_name {
         info!("🚀 New latest version available: {}", v.tag_name);
+
+        cacher.with_cache(|c| {
+            c.latest_known = v.tag_name;
+        })?;
+
         return Ok(true);
     }
-
-    cacher.with_cache(|c| {
-        c.latest_known = v.tag_name;
-    })?;
 
     Ok(false)
 }
