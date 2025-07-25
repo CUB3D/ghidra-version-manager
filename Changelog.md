@@ -5,3 +5,8 @@
 
 ## 0.2.2
 - Fixed error on first run
+
+## 0.3.0
+- Windows support
+- Fixed `run latest` not detecting an existing install
+- Now warns if you don't have java

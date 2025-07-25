@@ -7,19 +7,54 @@ use anyhow::anyhow;
 use futures_util::StreamExt;
 use ico::IconDir;
 use reqwest::Client;
-use std::fs::{File, Permissions};
-use std::os::unix::fs::PermissionsExt;
 use std::time::Duration;
 use std::{env::home_dir, path::PathBuf};
+use std::{fs::File, process::Command};
 use tokio::io::AsyncWriteExt;
 use tracing::{debug, error, info};
 
+pub fn do_java_check() {
+    //TODO: check java version compat
+    let res = Command::new("javac").arg("--version").output();
+    if let Ok(res) = res {
+        if res.status.success() {
+            return;
+        }
+    }
+
+    error!("------------------------------");
+    error!("You need to have the Java JDK (not JRE) installed to use Ghidra.");
+    error!(
+        "We tried to run `javac --version` but it failed, consider installing JDK (for Ghidra 11+ use version 21) LTS from the following:"
+    );
+    if cfg!(target_family = "windows") {
+        error!("https://adoptium.net/temurin/releases");
+    } else if cfg!(target_os = "macos") {
+        error!("brew install openjdk@21");
+    } else if cfg!(target_os = "linux") {
+        error!("sudo apt install default-jdk (debian/ubuntu)");
+        error!("sudo pacman -Sy jdk21-openjdk (arch)");
+        error!("sudo dnf install java-21-openjdk (fedora/rhel/rocky)")
+    } else {
+        error!("I have no clue what platform you're on, try your platforms docs");
+    }
+    error!("------------------------------");
+}
+
+/// Installs a copy of Ghidra
+/// - Finds the correct zip from GitHub releases
+/// - Downloads it
+/// - Extracts it
+/// - Creates a .desktop file (linux)
+/// - Creates a launcher in /Applications (macOS)
 pub async fn install_version(
     cacher: &mut Cacher,
     args: &Args,
     path: &PathBuf,
     tag: &String,
 ) -> anyhow::Result<()> {
+    do_java_check();
+
     debug!("Installing tag '{tag}'");
     if cacher.cache.entries.contains_key(tag) {
         info!("That version is already installed");
@@ -152,7 +187,14 @@ pub async fn install_version(
         let mut script = "#!/bin/sh -i\n".to_string();
         script.push_str(&exec);
         std::fs::write(&bin, script).expect("Failed to write to script file");
-        std::fs::set_permissions(bin, Permissions::from_mode(0o744))?;
+
+        /// On unixes we need to mark the binary as executable
+        #[cfg(target_os = "macos")]
+        {
+            use std::fs::Permissions;
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(bin, Permissions::from_mode(0o744))?;
+        }
 
         let cont = app.join("Contents");
         let res = cont.join("Resources");

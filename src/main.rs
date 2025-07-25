@@ -137,7 +137,12 @@ async fn main() -> anyhow::Result<()> {
     let args = Args::parse();
 
     let home = std::env::home_dir().context("Couldn't determine home directory")?;
-    let path = home.join(".local/opt/gvm/");
+    let path = if cfg!(target_family = "unix") {
+        home.join(".local/opt/gvm/")
+    } else {
+        home.join("AppData").join("Local").join("gvm")
+    };
+
     let _ = std::fs::create_dir_all(&path);
 
     let cache_path = path.join("cache.toml");
@@ -155,7 +160,7 @@ async fn main() -> anyhow::Result<()> {
             let _ = Notification::new()
                 .summary("New ghidra version available")
                 .icon("ghidra")
-                .show()?;
+                .show();
         }
         cacher.with_cache(|c| c.last_update_check = Utc::now())?;
     }
@@ -236,7 +241,11 @@ async fn main() -> anyhow::Result<()> {
         }
         Cmd::Run { tag } => {
             let tag = match tag {
-                Some(tag) => tag.clone(),
+                Some(tag) => match tag.as_str() {
+                    "default" => cacher.default_explicit(),
+                    "latest" => cacher.cache.latest_known.clone(),
+                    _ => tag.to_string(),
+                },
                 None => cacher.default_explicit(),
             };
 
@@ -246,9 +255,15 @@ async fn main() -> anyhow::Result<()> {
 
             let path = &cacher.cache.entries.get(&tag).as_ref().unwrap().path;
             let runner = if cacher.cache.prefs.pyghidra {
-                path.join("support/pyghidraRun")
-            } else {
+                if cfg!(target_family = "unix") {
+                    path.join("support/pyghidraRun")
+                } else {
+                    path.join("support/pyghidraRun.bat")
+                }
+            } else if cfg!(target_family = "unix") {
                 path.join("ghidraRun")
+            } else {
+                path.join("ghidraRun.bat")
             };
 
             if !runner.exists() {
