@@ -1,7 +1,7 @@
 # GVM
 Ghidra Version Manager is a utility to manage and update your Ghidra versions and extensions
 
-Supports Linux and macOS
+Supports Linux, macOS and Windows
 
 ## Installing
 ```shell
