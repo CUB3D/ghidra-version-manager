@@ -10,3 +10,6 @@
 - Windows support
 - Fixed `run latest` not detecting an existing install
 - Now warns if you don't have java
+
+## 0.3.1
+- Don't panic when deleting an extension you don't have installed

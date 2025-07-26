@@ -111,7 +111,15 @@ pub(crate) async fn handle_ext_cmd(
                     return Ok(());
                 }
             };
-            let ext = ent.extensions.get(&ext_def.slug).cloned().unwrap();
+
+            let ext = match ent.extensions.get(&ext_def.slug) {
+                None => {
+                    error!("The version {ghidra_version} doesn't have the extension {} installed", ext_def.name);
+                    return Ok(())
+                }
+                Some(e) => e.clone(),
+            };
+
             ent.extensions.remove(&ext_def.slug);
             cacher.save()?;
 
