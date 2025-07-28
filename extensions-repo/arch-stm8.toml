@@ -1,0 +1,8 @@
+name = "STM-8"
+slug = "arch-stm8"
+repo_user = "esaulenka"
+repo_repo = "ghidra_STM8"
+
+kind="ProcessorGit"
+branch_name="master"
+no_prefix=true

@@ -1,0 +1,6 @@
+name = "CSKY"
+slug = "arch-csky"
+repo_user = "leommxj"
+repo_repo = "ghidra_csky"
+
+kind="DownloadOnly"
