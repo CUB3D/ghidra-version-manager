@@ -1,0 +1,8 @@
+name = "RX"
+slug = "arch-renesasrx"
+repo_user = "redballoonsecurity"
+repo_repo = "rx-proc-ghidra"
+
+kind="ProcessorGit"
+branch_name="master"
+no_prefix=true

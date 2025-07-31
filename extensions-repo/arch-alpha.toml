@@ -1,0 +1,8 @@
+name = "Alpha"
+slug = "arch-alpha"
+repo_user = "kkaempf"
+repo_repo = "ghidra-alpha"
+
+kind="ProcessorGit"
+branch_name="master"
+no_prefix=true
