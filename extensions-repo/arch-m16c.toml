@@ -1,0 +1,8 @@
+name = "M16c"
+slug = "arch-m16c"
+repo_user = "silverchris"
+repo_repo = "m16c"
+
+kind="ProcessorGit"
+branch_name="master"
+no_prefix=true
