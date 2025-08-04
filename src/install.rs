@@ -188,7 +188,7 @@ pub async fn install_version(
         script.push_str(&exec);
         std::fs::write(&bin, script).expect("Failed to write to script file");
 
-        /// On unixes we need to mark the binary as executable
+        // On unixes we need to mark the binary as executable
         #[cfg(target_os = "macos")]
         {
             use std::fs::Permissions;
