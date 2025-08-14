@@ -6,6 +6,7 @@ use anyhow::Context;
 use chrono::Utc;
 use clap::{Parser, Subcommand};
 use notify_rust::Notification;
+use std::os::unix::process::CommandExt;
 use std::process::Command;
 use tracing::level_filters::LevelFilter;
 use tracing::{debug, error, info};
@@ -274,7 +275,11 @@ async fn main() -> anyhow::Result<()> {
                 return Ok(());
             }
             info!("Launching {}", runner.display());
-            Command::new(&runner).spawn()?;
+            if cfg!(target_os = "linux") {
+                return Err(anyhow::anyhow!(Command::new(&runner).exec()));
+            } else {
+                Command::new(&runner).spawn()?;
+            }
         }
         Cmd::Install { tag } => {
             install::install_version(&mut cacher, &args, &path, tag).await?;

@@ -16,10 +16,10 @@ use tracing::{debug, error, info};
 pub fn do_java_check() {
     //TODO: check java version compat
     let res = Command::new("javac").arg("--version").output();
-    if let Ok(res) = res {
-        if res.status.success() {
-            return;
-        }
+    if let Ok(res) = res
+        && res.status.success()
+    {
+        return;
     }
 
     error!("------------------------------");
