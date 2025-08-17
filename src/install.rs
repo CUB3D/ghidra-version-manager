@@ -16,10 +16,10 @@ use tracing::{debug, error, info};
 pub fn do_java_check() {
     //TODO: check java version compat
     let res = Command::new("javac").arg("--version").output();
-    if let Ok(res) = res {
-        if res.status.success() {
-            return;
-        }
+    if let Ok(res) = res
+        && res.status.success()
+    {
+        return;
     }
 
     error!("------------------------------");
@@ -82,7 +82,7 @@ pub async fn install_version(
         .context("This tag doesn't have an asset attached")?;
     let url = asset.browser_download_url.clone();
 
-    info!("Downloading: {}", &url);
+    info!("⬇️ Downloading: {}", &url);
 
     let c = Client::builder()
         .gzip(true)
@@ -95,9 +95,8 @@ pub async fn install_version(
     let mut stream = c.get(url).send().await?.bytes_stream();
 
     let dl_path = path.join(format!("ghidra_{}.zip", rel.tag_name));
-    debug!("DL path  {:?}", dl_path);
 
-    info!("Saving to {}", dl_path.as_path().display());
+    info!("💾 Saving to {}", dl_path.as_path().display());
 
     if dl_path.exists() {
         info!("Using cached download");
@@ -121,7 +120,7 @@ pub async fn install_version(
         return Ok(());
     }
 
-    info!("Extracting to {}", path.display());
+    info!("📦 Extracting to {}", path.display());
 
     let reader = File::open(&dl_path)?;
     let mut zip = match zip::ZipArchive::new(reader) {
@@ -139,7 +138,7 @@ pub async fn install_version(
         }
     }
 
-    info!("Creating application launcher entries");
+    info!("⚙️ Creating application launcher entries");
 
     let file_name = dl_path.file_name().unwrap().to_str().unwrap();
     let parts = file_name.split("_").collect::<Vec<&str>>();

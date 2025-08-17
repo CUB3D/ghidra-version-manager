@@ -114,8 +114,11 @@ pub(crate) async fn handle_ext_cmd(
 
             let ext = match ent.extensions.get(&ext_def.slug) {
                 None => {
-                    error!("The version {ghidra_version} doesn't have the extension {} installed", ext_def.name);
-                    return Ok(())
+                    error!(
+                        "The version {ghidra_version} doesn't have the extension {} installed",
+                        ext_def.name
+                    );
+                    return Ok(());
                 }
                 Some(e) => e.clone(),
             };

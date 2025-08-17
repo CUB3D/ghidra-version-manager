@@ -81,7 +81,7 @@ pub enum Cmd {
         cmd: DefaultSubCmd,
     },
 
-    // Manage preferences
+    /// Manage preferences
     Prefs {
         #[clap(subcommand)]
         cmd: PrefsSubCmd,
@@ -90,6 +90,9 @@ pub enum Cmd {
     #[command(alias = "u")]
     /// Update the default version
     Update,
+
+    /// Force update check
+    CheckUpdate,
 
     #[command(alias = "e")]
     /// Manage extensions
@@ -109,7 +112,7 @@ pub async fn update_latest_version(cacher: &mut Cacher) -> anyhow::Result<bool> 
         .await?;
 
     if cacher.cache.latest_known != v.tag_name {
-        info!("🚀 New latest version available: {}", v.tag_name);
+        info!("🔔🔔🔔 New version available: {} 🔔🔔🔔", v.tag_name);
 
         cacher.with_cache(|c| {
             c.latest_known = v.tag_name;
@@ -123,6 +126,25 @@ pub async fn update_latest_version(cacher: &mut Cacher) -> anyhow::Result<bool> 
 
 // TODO:
 // ext updates
+
+async fn do_update_check(cacher: &mut Cacher, args: &Args) -> anyhow::Result<bool> {
+    debug!("Checking for updates");
+
+    let mut new_version = false;
+
+    if update_latest_version(cacher).await? {
+        if args.launcher {
+            let _ = Notification::new()
+                .summary("New ghidra version available")
+                .icon("ghidra")
+                .show();
+        }
+        new_version = true;
+    }
+    cacher.with_cache(|c| c.last_update_check = Utc::now())?;
+
+    Ok(new_version)
+}
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -154,18 +176,17 @@ async fn main() -> anyhow::Result<()> {
         > 18
         || cacher.cache.latest_known.is_empty()
     {
-        debug!("Checking for updates");
-
-        if update_latest_version(&mut cacher).await? && args.launcher {
-            let _ = Notification::new()
-                .summary("New ghidra version available")
-                .icon("ghidra")
-                .show();
-        }
-        cacher.with_cache(|c| c.last_update_check = Utc::now())?;
+        do_update_check(&mut cacher, &args).await?;
     }
 
     match &args.cmd {
+        Cmd::CheckUpdate => {
+            // Note: Not saving here so we don't lose the old value here if the check fails
+            cacher.cache.latest_known = "".to_string();
+            if !do_update_check(&mut cacher, &args).await? {
+                info!("You have the latest version, I've checked");
+            }
+        }
         Cmd::Extensions { cmd } => {
             extensions::handle_ext_cmd(&mut cacher, &path, &args, cmd).await?;
         }
@@ -177,7 +198,6 @@ async fn main() -> anyhow::Result<()> {
 
             let latest = cacher.cache.latest_known.clone();
             if !cacher.is_installed(&latest) {
-                info!("✨✨✨ New version available: {latest} ✨✨✨");
                 install::install_version(&mut cacher, &args, &path, &latest).await?;
             } else {
                 info!("You have the latest version already!");
