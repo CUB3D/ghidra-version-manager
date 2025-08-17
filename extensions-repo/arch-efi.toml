@@ -1,0 +1,8 @@
+name = "efi-bytecode"
+slug = "arch-efi"
+repo_user = "meromwolff"
+repo_repo = "Ghidra-EFI-Byte-Code-Processor"
+
+kind="ProcessorGit"
+branch_name="master"
+no_prefix=true

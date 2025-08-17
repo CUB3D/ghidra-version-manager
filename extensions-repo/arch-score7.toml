@@ -1,0 +1,8 @@
+name = "sunplus-s-core7"
+slug = "arch-sunplus-score7"
+repo_user = "hyperscandev"
+repo_repo = "ghidra-score7"
+
+kind="ProcessorGit"
+branch_name="master"
+no_prefix=true
