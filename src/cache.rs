@@ -37,9 +37,9 @@ pub struct Cache {
 impl Default for Cache {
     fn default() -> Self {
         Self {
-            entries: Default::default(),
+            entries: HashMap::new(),
             default: "latest".to_string(),
-            latest_known: "".to_string(),
+            latest_known: String::new(),
             last_update_check: Utc::now(),
             prefs: Prefs::default(),
         }
@@ -87,6 +87,7 @@ impl Cacher {
         Ok(())
     }
 
+    #[must_use]
     pub fn default_explicit(&self) -> String {
         match self.cache.default.as_str() {
             "latest" => self.cache.latest_known.clone(),
@@ -94,6 +95,7 @@ impl Cacher {
         }
     }
 
+    #[must_use]
     pub fn is_installed(&self, tag: &str) -> bool {
         self.cache.entries.contains_key(tag)
     }

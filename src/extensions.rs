@@ -104,7 +104,7 @@ pub(crate) async fn handle_ext_cmd(
             let ghidra_version = ghidra_version.clone().unwrap_or(cacher.default_explicit());
             let ext_def = find_by_name(name)?;
 
-            let ent = match cacher.cache.entries.get_mut(&ghidra_version) {
+            let ghidra_entry = match cacher.cache.entries.get_mut(&ghidra_version) {
                 Some(e) => e,
                 None => {
                     error!("Version {ghidra_version} isn't installed");
@@ -112,7 +112,7 @@ pub(crate) async fn handle_ext_cmd(
                 }
             };
 
-            let ext = match ent.extensions.get(&ext_def.slug) {
+            let extention_entry = match ghidra_entry.extensions.get(&ext_def.slug) {
                 None => {
                     error!(
                         "The version {ghidra_version} doesn't have the extension {} installed",
@@ -123,10 +123,10 @@ pub(crate) async fn handle_ext_cmd(
                 Some(e) => e.clone(),
             };
 
-            ent.extensions.remove(&ext_def.slug);
+            ghidra_entry.extensions.remove(&ext_def.slug);
             cacher.save()?;
 
-            for f in &ext.files {
+            for f in &extention_entry.files {
                 if std::fs::exists(f).unwrap_or(false) {
                     if std::fs::metadata(f)?.is_file() {
                         info!("rm {}", f.display());
@@ -274,7 +274,7 @@ pub(crate) async fn handle_ext_cmd(
 
                     info!("Extracting");
 
-                    let mut tmp = "".to_string();
+                    let mut tmp = String::new();
 
                     let mut ext = ExtEntry::default();
                     ext.files.push(base.join(&entry.name));
@@ -321,8 +321,8 @@ pub(crate) async fn handle_ext_cmd(
                     }
 
                     cacher.with_cache(|c| {
-                        let ent = c.entries.get_mut(&ghidra_version).unwrap();
-                        ent.extensions.insert(entry.slug, ext);
+                        let cache_entry = c.entries.get_mut(&ghidra_version).unwrap();
+                        cache_entry.extensions.insert(entry.slug, ext);
                     })?;
                 }
             }

@@ -107,6 +107,8 @@ pub enum Cmd {
 ///
 /// Returns Ok(true) if there is an update, Ok(false) if not
 /// Updates the cache with the new version if one is fone otherwise it is unchanged
+/// 
+/// # Errors
 /// Returns error if the update check
 pub async fn update_latest_version(cacher: &mut Cacher) -> anyhow::Result<bool> {
     let octocrab = octocrab::instance();
@@ -192,7 +194,7 @@ async fn main() -> anyhow::Result<()> {
     match &args.cmd {
         Cmd::CheckUpdate => {
             // Note: Not saving here so we don't lose the old value here if the check fails
-            cacher.cache.latest_known = "".to_string();
+            cacher.cache.latest_known = String::new();
             if !do_update_check(&mut cacher, &args).await? {
                 info!("You have the latest version, I've checked");
             }
@@ -207,10 +209,10 @@ async fn main() -> anyhow::Result<()> {
             }
 
             let latest = cacher.cache.latest_known.clone();
-            if !cacher.is_installed(&latest) {
-                install::install_version(&mut cacher, &args, &path, &latest).await?;
-            } else {
+            if cacher.is_installed(&latest) {
                 info!("You have the latest version already!");
+            } else {
+                install::install_version(&mut cacher, &args, &path, &latest).await?;
             }
         }
         Cmd::Default { cmd } => match cmd {
@@ -219,7 +221,7 @@ async fn main() -> anyhow::Result<()> {
             }
             DefaultSubCmd::Set { tag } => {
                 cacher.with_cache(|c| {
-                    c.default = tag.clone();
+                    c.default.clone_from(tag);
                 })?;
 
                 if !cacher.is_installed(tag) {
@@ -234,7 +236,7 @@ async fn main() -> anyhow::Result<()> {
                 } else {
                     "no"
                 };
-                info!("Use PyGhidra in launchers? [{yn}]")
+                info!("Use PyGhidra in launchers? [{yn}]");
             }
             PrefsSubCmd::Set { key, value } => match key.as_str() {
                 "py3" => {

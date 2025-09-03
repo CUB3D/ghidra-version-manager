@@ -7,11 +7,12 @@ use anyhow::anyhow;
 use futures_util::StreamExt;
 use ico::IconDir;
 use reqwest::Client;
-use std::time::Duration;
+use std::{collections::HashMap, time::Duration};
 use std::{env::home_dir, path::PathBuf};
 use std::{fs::File, process::Command};
 use tokio::io::AsyncWriteExt;
 use tracing::{debug, error, info};
+use std::fmt::Write;
 
 pub fn do_java_check() {
     //TODO: check java version compat
@@ -34,7 +35,7 @@ pub fn do_java_check() {
     } else if cfg!(target_os = "linux") {
         error!("sudo apt install default-jdk (debian/ubuntu)");
         error!("sudo pacman -Sy jdk21-openjdk (arch)");
-        error!("sudo dnf install java-21-openjdk (fedora/rhel/rocky)")
+        error!("sudo dnf install java-21-openjdk (fedora/rhel/rocky)");
     } else {
         error!("I have no clue what platform you're on, try your platforms docs");
     }
@@ -70,13 +71,13 @@ pub async fn install_version(
 
     let octocrab = octocrab::instance();
 
-    let rel = octocrab
+    let release = octocrab
         .repos("NationalSecurityAgency", "ghidra")
         .releases()
         .get_by_tag(&tag)
         .await?;
 
-    let asset = rel
+    let asset = release
         .assets
         .first()
         .context("This tag doesn't have an asset attached")?;
@@ -94,7 +95,7 @@ pub async fn install_version(
 
     let mut stream = c.get(url).send().await?.bytes_stream();
 
-    let dl_path = path.join(format!("ghidra_{}.zip", rel.tag_name));
+    let dl_path = path.join(format!("ghidra_{}.zip", release.tag_name));
 
     info!("💾 Saving to {}", dl_path.as_path().display());
 
@@ -131,7 +132,7 @@ pub async fn install_version(
         }
     };
     match zip.extract(path) {
-        Ok(_) => {}
+        Ok(()) => {}
         Err(e) => {
             std::fs::remove_file(&dl_path)?;
             return Err(anyhow!("Could not extract zip file, deleting: {e}"));
@@ -141,7 +142,7 @@ pub async fn install_version(
     info!("⚙️ Creating application launcher entries");
 
     let file_name = dl_path.file_name().unwrap().to_str().unwrap();
-    let parts = file_name.split("_").collect::<Vec<&str>>();
+    let parts = file_name.split('_').collect::<Vec<&str>>();
     let version = parts[2];
     let dir_name = format!("ghidra_{version}_PUBLIC");
 
@@ -169,10 +170,10 @@ pub async fn install_version(
         let desktop = app_dir.join(format!("ghidra_{version}.desktop"));
 
         let mut entry = "[Desktop Entry]\n".to_string();
-        entry.push_str(&format!("Name=Ghidra ({version})\n"));
+        let _ = writeln!(entry, "Name=Ghidra ({version})");
         entry.push_str("Comment=Ghidra\n");
-        entry.push_str(&format!("Exec={exec}\n"));
-        entry.push_str(&format!("Icon={ico}\n"));
+        let _ = writeln!(entry, "Exec={exec}");
+        let _ = writeln!(entry, "Icon={ico}");
         entry.push_str("Type=Application\n");
         std::fs::write(&desktop, entry)?;
 
@@ -196,10 +197,10 @@ pub async fn install_version(
         }
 
         let cont = app.join("Contents");
-        let res = cont.join("Resources");
-        std::fs::create_dir_all(&res)?;
+        let resource_dir = cont.join("Resources");
+        std::fs::create_dir_all(&resource_dir)?;
         let info = cont.join("Info.plist");
-        let res = res.join("Icon.png");
+        let icon_path = resource_dir.join("Icon.png");
 
         let plist = include_str!("../res/macos_plist.plist")
             .to_string()
@@ -212,7 +213,7 @@ pub async fn install_version(
         let ico = IconDir::read(ico_file)?;
         let image = ico.entries()[0].decode()?;
 
-        let file = File::create(res)?;
+        let file = File::create(icon_path)?;
         image.write_png(&file)?;
 
         Some(app)
@@ -226,7 +227,7 @@ pub async fn install_version(
             CacheEntry {
                 path: dir_path,
                 launcher: desktop,
-                extensions: Default::default(),
+                extensions: HashMap::new(),
             },
         );
     })?;

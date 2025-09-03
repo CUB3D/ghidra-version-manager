@@ -13,3 +13,6 @@
 
 ## 0.3.1
 - Don't panic when deleting an extension you don't have installed
+
+## 0.3.2
+- Don't panic when the update check fails due to network issues
