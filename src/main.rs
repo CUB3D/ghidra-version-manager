@@ -9,7 +9,7 @@ use notify_rust::Notification;
 use std::os::unix::process::CommandExt;
 use std::process::Command;
 use tracing::level_filters::LevelFilter;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, warn};
 use tracing_subscriber::EnvFilter;
 
 pub mod cache;
@@ -103,6 +103,11 @@ pub enum Cmd {
     },
 }
 
+/// Check if there is an update available
+///
+/// Returns Ok(true) if there is an update, Ok(false) if not
+/// Updates the cache with the new version if one is fone otherwise it is unchanged
+/// Returns error if the update check
 pub async fn update_latest_version(cacher: &mut Cacher) -> anyhow::Result<bool> {
     let octocrab = octocrab::instance();
 
@@ -131,16 +136,20 @@ pub async fn update_latest_version(cacher: &mut Cacher) -> anyhow::Result<bool> 
 async fn do_update_check(cacher: &mut Cacher, args: &Args) -> anyhow::Result<bool> {
     debug!("Checking for updates");
 
-    let mut new_version = false;
-
-    if update_latest_version(cacher).await? {
-        if args.launcher {
-            let _ = Notification::new()
-                .summary("New ghidra version available")
-                .icon("ghidra")
-                .show();
+    let new_version = match update_latest_version(cacher).await {
+        Ok(v) => v,
+        Err(e) => {
+            warn!("Failed to check for update: {e:?}");
+            return Ok(false);
         }
-        new_version = true;
+    };
+
+    // Show update notification if running in launcher mode
+    if new_version && args.launcher {
+        let _ = Notification::new()
+            .summary("New ghidra version available")
+            .icon("ghidra")
+            .show();
     }
     cacher.with_cache(|c| c.last_update_check = Utc::now())?;
 
