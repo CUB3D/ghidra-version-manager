@@ -1,6 +1,6 @@
 name = "CSKY"
 slug = "arch-csky"
-repo_user = "leommxj"
-repo_repo = "ghidra_csky"
+repo_user = "taligentx"
+repo_repo = "ghidra_csky_ck804"
 
 kind="DownloadOnly"
