@@ -33,9 +33,10 @@ pub fn do_java_check() {
     } else if cfg!(target_os = "macos") {
         error!("brew install openjdk@21");
     } else if cfg!(target_os = "linux") {
-        error!("sudo apt install default-jdk (debian/ubuntu)");
-        error!("sudo pacman -Sy jdk21-openjdk (arch)");
-        error!("sudo dnf install java-21-openjdk (fedora/rhel/rocky)");
+        error!("sudo apt install default-jdk (Debian/Ubuntu)");
+        error!("sudo pacman -Sy jdk21-openjdk (Arch)");
+        error!("sudo dnf install java-21-openjdk-devel (Fedora/RHEL/Rocky)");
+        error!("sudo rpm-ostree install java-21-openjdk-devel (Fedora Silverblue/Kinoite)");
     } else {
         error!("I have no clue what platform you're on, try your platforms docs");
     }
