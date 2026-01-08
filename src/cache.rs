@@ -19,9 +19,17 @@ pub struct CacheEntry {
     pub extensions: HashMap<String, ExtEntry>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Default)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct Prefs {
     pub pyghidra: bool,
+
+    pub ui_scale_override: u32,
+}
+
+impl Default for Prefs {
+    fn default() -> Self {
+        Self { pyghidra: false, ui_scale_override: 10 }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug)]

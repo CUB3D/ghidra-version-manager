@@ -13,6 +13,7 @@ use tracing::{debug, error, info, warn};
 use tracing_subscriber::EnvFilter;
 
 pub mod cache;
+pub mod ghidra_props_parser;
 pub mod install;
 
 #[derive(Parser, Debug)]
@@ -107,7 +108,7 @@ pub enum Cmd {
 ///
 /// Returns Ok(true) if there is an update, Ok(false) if not
 /// Updates the cache with the new version if one is fone otherwise it is unchanged
-/// 
+///
 /// # Errors
 /// Returns error if the update check
 pub async fn update_latest_version(cacher: &mut Cacher) -> anyhow::Result<bool> {
@@ -236,12 +237,18 @@ async fn main() -> anyhow::Result<()> {
                 } else {
                     "no"
                 };
-                info!("Use PyGhidra in launchers? [{yn}]");
+                info!("Use PyGhidra in launchers? {{py3}} [{yn}]");
+                info!("Override ui scale {{scale}} [{}]", cacher.cache.prefs.ui_scale_override);
             }
             PrefsSubCmd::Set { key, value } => match key.as_str() {
                 "py3" => {
                     cacher.with_cache(|c: &mut cache::Cache| {
                         c.prefs.pyghidra = *value == "true";
+                    })?;
+                }
+                "scale" => {
+                    cacher.with_cache(|c: &mut cache::Cache| {
+                        c.prefs.ui_scale_override = value.parse::<u32>().expect("Failed to parse as number");
                     })?;
                 }
                 _ => error!("Unknown key"),

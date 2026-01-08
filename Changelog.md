@@ -16,3 +16,6 @@
 
 ## 0.3.2
 - Don't panic when the update check fails due to network issues
+
+## 0.4.0
+- Support rewriting launch properties, prefs to set default ui scale `prefs set scale 2`
