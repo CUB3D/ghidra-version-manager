@@ -23,3 +23,4 @@ include_directory = {version = "=0.1.1", default-features = false, features = ["
 flate2 = {version = "=1.1.2", default-features = false, features = ["zlib-rs"]}
 tar = {version = "=0.4.44", default-features = false, features = []}
 ico = {version = "=0.4.0", default-features = false, features = [] }
+props-util = {version = "=0.1.0", default-features = false, features = []}

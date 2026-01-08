@@ -1,0 +1,6 @@
+name = "RL78"
+slug = "arch-rl78"
+repo_user = "CUB3D"
+repo_repo = "ghidra-rl78"
+
+kind="DownloadOnly"
