@@ -161,7 +161,7 @@ pub async fn install_version(
     let exec = format!("{} --launcher run {tag}", us.to_string_lossy());
 
     let ico = dir_path
-        .join("support/ghidra.ico")
+        .join("docs/images/GHIDRA_1.png")
         .to_string_lossy()
         .to_string();
 
