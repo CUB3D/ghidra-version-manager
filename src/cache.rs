@@ -28,7 +28,10 @@ pub struct Prefs {
 
 impl Default for Prefs {
     fn default() -> Self {
-        Self { pyghidra: false, ui_scale_override: 10 }
+        Self {
+            pyghidra: false,
+            ui_scale_override: 10,
+        }
     }
 }
 

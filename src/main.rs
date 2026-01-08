@@ -238,7 +238,10 @@ async fn main() -> anyhow::Result<()> {
                     "no"
                 };
                 info!("Use PyGhidra in launchers? {{py3}} [{yn}]");
-                info!("Override ui scale {{scale}} [{}]", cacher.cache.prefs.ui_scale_override);
+                info!(
+                    "Override ui scale {{scale}} [{}]",
+                    cacher.cache.prefs.ui_scale_override
+                );
             }
             PrefsSubCmd::Set { key, value } => match key.as_str() {
                 "py3" => {
@@ -248,7 +251,8 @@ async fn main() -> anyhow::Result<()> {
                 }
                 "scale" => {
                     cacher.with_cache(|c: &mut cache::Cache| {
-                        c.prefs.ui_scale_override = value.parse::<u32>().expect("Failed to parse as number");
+                        c.prefs.ui_scale_override =
+                            value.parse::<u32>().expect("Failed to parse as number");
                     })?;
                 }
                 _ => error!("Unknown key"),

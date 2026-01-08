@@ -1,7 +1,4 @@
-use std::{
-    collections::BTreeMap,
-    path::Path,
-};
+use std::{collections::BTreeMap, path::Path};
 
 use anyhow::Context;
 
@@ -36,7 +33,7 @@ impl GhidraPropsFile {
     }
 
     pub fn save_to_file(&self, path: &Path) -> anyhow::Result<()> {
-        std::fs::write(path, &self.generate_prop_content())?;
+        std::fs::write(path, self.generate_prop_content())?;
         Ok(())
     }
 

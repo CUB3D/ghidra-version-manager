@@ -1,6 +1,7 @@
 use crate::{
     Args,
-    cache::{CacheEntry, Cacher}, ghidra_props_parser::GhidraPropsFile,
+    cache::{CacheEntry, Cacher},
+    ghidra_props_parser::GhidraPropsFile,
 };
 use anyhow::Context;
 use anyhow::anyhow;
@@ -155,7 +156,6 @@ pub async fn install_version(
         dir_path = dl_path.parent().unwrap().join(dir_name);
     }
 
-
     let us = std::env::current_exe()?;
 
     let exec = format!("{} --launcher run {tag}", us.to_string_lossy());
@@ -230,16 +230,20 @@ pub async fn install_version(
     // Backup old props file
     let props_backup_path = dir_path.join("support/launch.properties.backup");
     std::fs::copy(&props_path, &props_backup_path)?;
-    
+
     //TODO: regnerate this when props change
     let mut props = GhidraPropsFile::from_path(&props_backup_path)?;
-    let mut vmargs = props.get_by_key("VMARGS_LINUX").context("Cant find VMARGS_LINUX prop")?;
+    let mut vmargs = props
+        .get_by_key("VMARGS_LINUX")
+        .context("Cant find VMARGS_LINUX prop")?;
     vmargs.retain(|f| !f.starts_with("-Dsun.java2d.uiScale="));
-    vmargs.push(format!("-Dsun.java2d.uiScale={}", cacher.cache.prefs.ui_scale_override));
+    vmargs.push(format!(
+        "-Dsun.java2d.uiScale={}",
+        cacher.cache.prefs.ui_scale_override
+    ));
     props.put("VMARGS_LINUX", vmargs);
 
     props.save_to_file(&props_path)?;
-
 
     cacher.with_cache(|c| {
         c.entries.insert(
