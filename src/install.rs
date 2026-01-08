@@ -175,6 +175,7 @@ pub async fn install_version(
         let _ = writeln!(entry, "Exec={exec}");
         let _ = writeln!(entry, "Icon={ico}");
         entry.push_str("Type=Application\n");
+        entry.push_str("StartupWMClass=ghidra-Ghidra\n");
         std::fs::write(&desktop, entry)?;
 
         Some(desktop)
