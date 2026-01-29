@@ -1,17 +1,23 @@
 mod extensions;
 
+use crate::backups::GvmConfig;
 use crate::cache::Cacher;
 use crate::extensions::ExtSubcommand;
 use anyhow::Context;
 use chrono::Utc;
 use clap::{Parser, Subcommand};
 use notify_rust::Notification;
+use std::io::{Cursor, Read, Write};
 use std::os::unix::process::CommandExt;
+use std::path::PathBuf;
 use std::process::Command;
 use tracing::level_filters::LevelFilter;
 use tracing::{debug, error, info, warn};
 use tracing_subscriber::EnvFilter;
+use zip::write::SimpleFileOptions;
+use zip::{CompressionMethod, ZipArchive, ZipWriter};
 
+pub mod backups;
 pub mod cache;
 pub mod ghidra_props_parser;
 pub mod install;
@@ -60,22 +66,52 @@ pub enum PrefsSubCmd {
 }
 
 #[derive(Debug, Subcommand)]
+pub enum SettingsSubcommand {
+    /// Export your current settings
+    Backup {
+        /// The desination
+        out: PathBuf,
+
+        /// The version to export
+        tag: Option<String>,
+    },
+
+    /// Restore a prior backup
+    Restore {
+        /// The backup
+        src: PathBuf,
+
+        /// The version to restore to
+        tag: Option<String>,
+    },
+}
+
+#[derive(Debug, Subcommand)]
 pub enum Cmd {
-    #[command(alias = "ls")]
     /// List the available Ghidra versions
+    #[command(alias = "ls")]
     List,
 
-    #[command(alias = "i")]
     /// Install a Ghidra version
-    Install { tag: String },
+    #[command(alias = "i")]
+    Install {
+        /// Which version to install
+        tag: String,
+    },
 
-    #[command(alias = "r")]
     /// Launch Ghidra, unless specified launches the default version
-    Run { tag: Option<String> },
+    #[command(alias = "r")]
+    Run {
+        /// Override the version to run
+        tag: Option<String>,
+    },
 
-    #[command(alias = "del")]
     /// Remove a Ghidra version
-    Uninstall { tag: String },
+    #[command(alias = "del")]
+    Uninstall {
+        /// The version to remove
+        tag: String,
+    },
 
     /// Manage the default version
     Default {
@@ -84,23 +120,31 @@ pub enum Cmd {
     },
 
     /// Manage preferences
+    #[command(alias = "p")]
     Prefs {
         #[clap(subcommand)]
         cmd: PrefsSubCmd,
     },
 
-    #[command(alias = "u")]
     /// Update the default version
+    #[command(alias = "u")]
     Update,
 
     /// Force update check
+    #[command(alias = "U")]
     CheckUpdate,
 
-    #[command(alias = "e")]
     /// Manage extensions
+    #[command(alias = "e")]
     Extensions {
         #[clap(subcommand)]
         cmd: ExtSubcommand,
+    },
+
+    /// Manage ghidra settings
+    Settings {
+        #[clap(subcommand)]
+        cmd: SettingsSubcommand,
     },
 }
 
@@ -193,6 +237,91 @@ async fn main() -> anyhow::Result<()> {
     }
 
     match &args.cmd {
+        Cmd::Settings { cmd } => match cmd {
+            SettingsSubcommand::Restore { src, tag } => {
+                if !cfg!(unix) {
+                    error!("This command is only supported on unix");
+                    return Ok(());
+                }
+
+                let tag = match tag {
+                    Some(tag) => match tag.as_str() {
+                        "default" => cacher.default_explicit(),
+                        "latest" => cacher.cache.latest_known.clone(),
+                        _ => tag.to_string(),
+                    },
+                    None => cacher.default_explicit(),
+                };
+
+                if let Some(cache_entry) = cacher.cache.entries.get(&tag) {
+                    let name = cache_entry.path.file_name().unwrap();
+                    let pref_path = home
+                        .join("./.config/ghidra/")
+                        .join(name)
+                        .join("./preferences");
+
+                    let zip_data = Cursor::new(std::fs::read(src)?);
+                    let mut zip = ZipArchive::new(zip_data)?;
+
+                    let mut prefs = zip.by_path("/prefs").context("Prefs not found")?;
+                    let mut prefs_data = Vec::new();
+                    prefs.read_to_end(&mut prefs_data)?;
+                    drop(prefs);
+
+                    let mut cfg = zip.by_path("/gvm_config.toml").context("Config not found")?;
+                    let mut cfg_data = Vec::new();
+                    cfg.read_to_end(&mut cfg_data)?;
+                    let cfg = toml::from_slice::<GvmConfig>(&cfg_data)?;
+
+                    println!("Restoring backup version {} from {}", cfg.version, cfg.tag);
+
+                    std::fs::write(pref_path, prefs_data)?;
+                } else {
+                    error!("That version isn't installed");
+                }
+            }
+            SettingsSubcommand::Backup { tag, out } => {
+                if !cfg!(unix) {
+                    error!("This command is only supported on unix");
+                    return Ok(());
+                }
+
+                let tag = match tag {
+                    Some(tag) => match tag.as_str() {
+                        "default" => cacher.default_explicit(),
+                        "latest" => cacher.cache.latest_known.clone(),
+                        _ => tag.to_string(),
+                    },
+                    None => cacher.default_explicit(),
+                };
+
+                if let Some(cache_entry) = cacher.cache.entries.get(&tag) {
+                    let name = cache_entry.path.file_name().unwrap();
+                    let pref_path = home
+                        .join("./.config/ghidra/")
+                        .join(name)
+                        .join("./preferences");
+                    let prefs_data =
+                        std::fs::read(&pref_path).context("Failed to read ghidra prefs")?;
+
+                    let mut zip_out = Cursor::new(Vec::new());
+                    let options = SimpleFileOptions::default()
+                        .compression_method(CompressionMethod::Deflated);
+                    let mut zip = ZipWriter::new(&mut zip_out);
+                    zip.start_file("prefs", options)?;
+                    zip.write_all(&prefs_data)?;
+
+                    zip.start_file("gvm_config.toml", options)?;
+                    zip.write_all(toml::to_string(&GvmConfig { version: 0, tag })?.as_bytes())?;
+
+                    zip.finish()?;
+
+                    std::fs::write(out, zip_out.into_inner()).context("Failed to save backup")?;
+                } else {
+                    error!("That version isn't installed");
+                }
+            }
+        },
         Cmd::CheckUpdate => {
             // Note: Not saving here so we don't lose the old value here if the check fails
             cacher.cache.latest_known = String::new();

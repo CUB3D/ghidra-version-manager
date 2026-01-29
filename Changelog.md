@@ -19,3 +19,6 @@
 
 ## 0.4.0
 - Support rewriting launch properties, prefs to set default ui scale `prefs set scale 2`
+
+## 0.5.0
+- Experimental unix-only support for backing up and restoring Ghidra preferences
