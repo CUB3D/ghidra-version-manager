@@ -25,4 +25,5 @@
 
 ## 0.6.0
 - `gvm update` will now automatically backup and restore preferences from the old version to the new one
+- - This also applies to automatic updates from `gvm run`
 - Installation will no longer try and cache downloads for release builds, this prevents `Could not find EOCD` errors when resuming after an interrupted download

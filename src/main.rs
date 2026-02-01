@@ -182,7 +182,7 @@ async fn main() -> anyhow::Result<()> {
                 {
                     info!("Backing up config from last launched version {last_launched}");
                     Some(
-                        BackupGenerator::from_cached_version(original_version, &latest)?.restorer(),
+                        BackupGenerator::from_cached_version(original_version, &last_launched)?.restorer(),
                     )
                 } else {
                     None
@@ -276,7 +276,28 @@ async fn main() -> anyhow::Result<()> {
             };
 
             if !cacher.is_installed(&tag) {
+                // Backup prefs for current version
+                let last_launched = cacher.cache.last_launched.clone();
+                let restorer = if cfg!(unix)
+                    && let Some(original_version) = cacher.cache.entries.get(&last_launched)
+                {
+                    info!("Backing up config from last launched version {last_launched}");
+                    Some(
+                        BackupGenerator::from_cached_version(original_version, &last_launched)?.restorer(),
+                    )
+                } else {
+                    None
+                };
+
                 install::install_version(&mut cacher, &args, &path, &tag).await?;
+
+                if cfg!(unix)
+                    && let Some(restorer) = restorer
+                    && let Some(new_version) = cacher.cache.entries.get(&tag)
+                {
+                    info!("Restoring config to {latest}");
+                    restorer.restore_to_cached_version(new_version)?;
+                }
             }
             cacher.with_cache(|c| {
                 c.last_launched = tag.clone();
