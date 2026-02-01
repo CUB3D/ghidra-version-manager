@@ -1,30 +1,28 @@
 mod extensions;
 
-use crate::backups::GvmConfig;
-use crate::cache::Cacher;
-use anyhow::Context;
-use chrono::Utc;
-use notify_rust::Notification;
-use std::io::{Cursor, Read, Write};
-use std::os::unix::process::CommandExt;
-use std::process::Command;
-use clap::Parser;
-use tracing::level_filters::LevelFilter;
-use tracing::{debug, error, info, warn};
-use tracing_subscriber::EnvFilter;
-use zip::write::SimpleFileOptions;
-use zip::{CompressionMethod, ZipArchive, ZipWriter};
-use crate::args::args::Args;
+use crate::args::arguments::Args;
 use crate::args::cmd::Cmd;
 use crate::args::default_subcommand::DefaultSubCmd;
 use crate::args::prefs_subcommand::PrefsSubCmd;
 use crate::args::settings_subcommand::SettingsSubcommand;
+use crate::cache::Cacher;
+use crate::prefs_backup::backup_generator::BackupGenerator;
+use crate::prefs_backup::backup_restorer::BackupRestorer;
+use anyhow::Context;
+use chrono::Utc;
+use clap::Parser;
+use notify_rust::Notification;
+use std::os::unix::process::CommandExt;
+use std::process::Command;
+use tracing::level_filters::LevelFilter;
+use tracing::{debug, error, info, warn};
+use tracing_subscriber::EnvFilter;
 
-pub mod backups;
+pub mod args;
 pub mod cache;
 pub mod ghidra_props_parser;
 pub mod install;
-pub mod args;
+mod prefs_backup;
 
 /// Check if there is an update available
 ///
@@ -54,9 +52,6 @@ pub async fn update_latest_version(cacher: &mut Cacher) -> anyhow::Result<bool> 
 
     Ok(false)
 }
-
-// TODO:
-// ext updates
 
 async fn do_update_check(cacher: &mut Cacher, args: &Args) -> anyhow::Result<bool> {
     debug!("Checking for updates");
@@ -132,28 +127,7 @@ async fn main() -> anyhow::Result<()> {
                 };
 
                 if let Some(cache_entry) = cacher.cache.entries.get(&tag) {
-                    let name = cache_entry.path.file_name().unwrap();
-                    let pref_path = home
-                        .join("./.config/ghidra/")
-                        .join(name)
-                        .join("./preferences");
-
-                    let zip_data = Cursor::new(std::fs::read(src)?);
-                    let mut zip = ZipArchive::new(zip_data)?;
-
-                    let mut prefs = zip.by_path("/prefs").context("Prefs not found")?;
-                    let mut prefs_data = Vec::new();
-                    prefs.read_to_end(&mut prefs_data)?;
-                    drop(prefs);
-
-                    let mut cfg = zip.by_path("/gvm_config.toml").context("Config not found")?;
-                    let mut cfg_data = Vec::new();
-                    cfg.read_to_end(&mut cfg_data)?;
-                    let cfg = toml::from_slice::<GvmConfig>(&cfg_data)?;
-
-                    println!("Restoring backup version {} from {}", cfg.version, cfg.tag);
-
-                    std::fs::write(pref_path, prefs_data)?;
+                    BackupRestorer::from_path(src)?.restore_to_cached_version(cache_entry)?;
                 } else {
                     error!("That version isn't installed");
                 }
@@ -174,27 +148,8 @@ async fn main() -> anyhow::Result<()> {
                 };
 
                 if let Some(cache_entry) = cacher.cache.entries.get(&tag) {
-                    let name = cache_entry.path.file_name().unwrap();
-                    let pref_path = home
-                        .join("./.config/ghidra/")
-                        .join(name)
-                        .join("./preferences");
-                    let prefs_data =
-                        std::fs::read(&pref_path).context("Failed to read ghidra prefs")?;
-
-                    let mut zip_out = Cursor::new(Vec::new());
-                    let options = SimpleFileOptions::default()
-                        .compression_method(CompressionMethod::Deflated);
-                    let mut zip = ZipWriter::new(&mut zip_out);
-                    zip.start_file("prefs", options)?;
-                    zip.write_all(&prefs_data)?;
-
-                    zip.start_file("gvm_config.toml", options)?;
-                    zip.write_all(toml::to_string(&GvmConfig { version: 0, tag })?.as_bytes())?;
-
-                    zip.finish()?;
-
-                    std::fs::write(out, zip_out.into_inner()).context("Failed to save backup")?;
+                    let backup = BackupGenerator::from_cached_version(cache_entry, &tag)?;
+                    std::fs::write(out, backup.backup_data).context("Failed to save backup")?;
                 } else {
                     error!("That version isn't installed");
                 }
@@ -208,7 +163,7 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Cmd::Extensions { cmd } => {
-            extensions::handle_ext_cmd(&mut cacher, &path, &args, &cmd).await?;
+            extensions::handle_ext_cmd(&mut cacher, &path, &args, cmd).await?;
         }
         Cmd::Update => {
             if cacher.cache.default != "latest" {
@@ -220,7 +175,28 @@ async fn main() -> anyhow::Result<()> {
             if cacher.is_installed(&latest) {
                 info!("You have the latest version already!");
             } else {
+                // Backup prefs for current version
+                let last_launched = cacher.cache.last_launched.clone();
+                let restorer = if cfg!(unix)
+                    && let Some(original_version) = cacher.cache.entries.get(&last_launched)
+                {
+                    info!("Backing up config from last launched version {last_launched}");
+                    Some(
+                        BackupGenerator::from_cached_version(original_version, &latest)?.restorer(),
+                    )
+                } else {
+                    None
+                };
+
                 install::install_version(&mut cacher, &args, &path, &latest).await?;
+
+                if cfg!(unix)
+                    && let Some(restorer) = restorer
+                    && let Some(new_version) = cacher.cache.entries.get(&latest)
+                {
+                    info!("Restoring config to {latest}");
+                    restorer.restore_to_cached_version(new_version)?;
+                }
             }
         }
         Cmd::Default { cmd } => match cmd {
@@ -302,6 +278,9 @@ async fn main() -> anyhow::Result<()> {
             if !cacher.is_installed(&tag) {
                 install::install_version(&mut cacher, &args, &path, &tag).await?;
             }
+            cacher.with_cache(|c| {
+                c.last_launched = tag.clone();
+            })?;
 
             let path = &cacher.cache.entries.get(&tag).as_ref().unwrap().path;
             let runner = if cacher.cache.prefs.pyghidra {
@@ -331,7 +310,7 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Cmd::Install { tag } => {
-            install::install_version(&mut cacher, &args, &path, &tag).await?;
+            install::install_version(&mut cacher, &args, &path, tag).await?;
         }
         Cmd::List => {
             let octocrab = octocrab::instance();

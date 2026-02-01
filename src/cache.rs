@@ -43,6 +43,8 @@ pub struct Cache {
     pub last_update_check: DateTime<Utc>,
     #[serde(default)]
     pub prefs: Prefs,
+    #[serde(default)]
+    pub last_launched: String,
 }
 
 impl Default for Cache {
@@ -53,6 +55,7 @@ impl Default for Cache {
             latest_known: String::new(),
             last_update_check: Utc::now(),
             prefs: Prefs::default(),
+            last_launched: String::new(),
         }
     }
 }

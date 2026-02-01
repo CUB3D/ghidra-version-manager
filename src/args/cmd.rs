@@ -1,8 +1,8 @@
-use clap::Subcommand;
 use crate::args::default_subcommand::DefaultSubCmd;
 use crate::args::prefs_subcommand::PrefsSubCmd;
 use crate::args::settings_subcommand::SettingsSubcommand;
 use crate::extensions::ExtSubcommand;
+use clap::Subcommand;
 
 #[derive(Debug, Subcommand)]
 pub enum Cmd {

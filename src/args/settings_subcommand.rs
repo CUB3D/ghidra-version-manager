@@ -1,5 +1,5 @@
-use std::path::PathBuf;
 use clap::Subcommand;
+use std::path::PathBuf;
 
 #[derive(Debug, Subcommand)]
 pub enum SettingsSubcommand {

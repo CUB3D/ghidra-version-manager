@@ -38,6 +38,10 @@ pub fn do_java_check() {
         error!("sudo pacman -Sy jdk21-openjdk (Arch)");
         error!("sudo dnf install java-21-openjdk-devel (Fedora/RHEL/Rocky)");
         error!("sudo rpm-ostree install java-21-openjdk-devel (Fedora Silverblue/Kinoite)");
+        error!(
+            "Add javaPackages.compiler.openjdk21 /etc/nix/configuration.nix and run `nixos-rebuild switch` (NixOS)"
+        );
+        error!("sudo emerge --ask --oneshot virtual/jdk (Gentoo)");
     } else {
         error!("I have no clue what platform you're on, try your platforms docs");
     }
@@ -101,7 +105,7 @@ pub async fn install_version(
 
     info!("💾 Saving to {}", dl_path.as_path().display());
 
-    if dl_path.exists() {
+    if dl_path.exists() && cfg!(debug_assertions) {
         info!("Using cached download");
     } else if !args.offline {
         let mut dl_file = tokio::fs::OpenOptions::default()
@@ -160,8 +164,8 @@ pub async fn install_version(
 
     let exec = format!("{} --launcher run {tag}", us.to_string_lossy());
 
-    let ico = dir_path
-        .join("docs/images/GHIDRA_1.png")
+    let ico_file_path = dir_path
+        .join("support/ghidra.ico")
         .to_string_lossy()
         .to_string();
 
@@ -171,11 +175,24 @@ pub async fn install_version(
         let _ = std::fs::create_dir_all(&app_dir);
         let desktop = app_dir.join(format!("ghidra_{version}.desktop"));
 
+        // This is to work around a bug in GNOME, the provided ICO file works fine in KDE and on Windows.
+        // However, on GNOME it will show as a corrupted file, so we will always just convert it to a PNG like on macOS.
+        let icon_path = dir_path
+            .join("support/ghidra_ico.png")
+            .to_string_lossy()
+            .to_string();
+
+        let ico_file = File::open(&ico_file_path)?;
+        let ico_parsed = IconDir::read(ico_file)?;
+        let ico_decoded = ico_parsed.entries()[0].decode()?;
+        let ico_as_png_file = File::create(icon_path)?;
+        ico_decoded.write_png(&ico_as_png_file)?;
+
         let mut entry = "[Desktop Entry]\n".to_string();
         let _ = writeln!(entry, "Name=Ghidra ({version})");
         entry.push_str("Comment=Ghidra\n");
         let _ = writeln!(entry, "Exec={exec}");
-        let _ = writeln!(entry, "Icon={ico}");
+        let _ = writeln!(entry, "Icon={ico_file_path}");
         entry.push_str("Type=Application\n");
         entry.push_str("Categories=Development\n");
         entry.push_str("StartupWMClass=ghidra-Ghidra\n");
@@ -192,7 +209,7 @@ pub async fn install_version(
         script.push_str(&exec);
         std::fs::write(&bin, script).expect("Failed to write to script file");
 
-        // On unixes we need to mark the binary as executable
+        // On Unixes, we need to mark the binary as executable
         #[cfg(target_os = "macos")]
         {
             use std::fs::Permissions;
@@ -213,12 +230,11 @@ pub async fn install_version(
 
         std::fs::write(&info, plist.as_bytes()).expect("Failed to write to script file");
 
-        let ico_file = File::open(&ico)?;
-        let ico = IconDir::read(ico_file)?;
-        let image = ico.entries()[0].decode()?;
-
-        let file = File::create(icon_path)?;
-        image.write_png(&file)?;
+        let ico_file = File::open(&ico_file_path)?;
+        let ico_parsed = IconDir::read(ico_file)?;
+        let ico_decoded = ico_parsed.entries()[0].decode()?;
+        let ico_as_png_file = File::create(icon_path)?;
+        ico_decoded.write_png(&ico_as_png_file)?;
 
         Some(app)
     } else {

@@ -22,3 +22,7 @@
 
 ## 0.5.0
 - Experimental unix-only support for backing up and restoring Ghidra preferences
+
+## 0.6.0
+- `gvm update` will now automatically backup and restore preferences from the old version to the new one
+- Installation will no longer try and cache downloads for release builds, this prevents `Could not find EOCD` errors when resuming after an interrupted download
