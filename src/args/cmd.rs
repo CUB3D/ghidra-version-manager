@@ -1,25 +1,35 @@
 use clap::Subcommand;
 use crate::args::default_subcommand::DefaultSubCmd;
 use crate::args::prefs_subcommand::PrefsSubCmd;
+use crate::args::settings_subcommand::SettingsSubcommand;
 use crate::extensions::ExtSubcommand;
 
 #[derive(Debug, Subcommand)]
 pub enum Cmd {
-    #[command(alias = "ls")]
     /// List the available Ghidra versions
+    #[command(alias = "ls")]
     List,
 
-    #[command(alias = "i")]
     /// Install a Ghidra version
-    Install { tag: String },
+    #[command(alias = "i")]
+    Install {
+        /// Which version to install
+        tag: String,
+    },
 
-    #[command(alias = "r")]
     /// Launch Ghidra, unless specified launches the default version
-    Run { tag: Option<String> },
+    #[command(alias = "r")]
+    Run {
+        /// Override the version to run
+        tag: Option<String>,
+    },
 
-    #[command(alias = "del")]
     /// Remove a Ghidra version
-    Uninstall { tag: String },
+    #[command(alias = "del")]
+    Uninstall {
+        /// The version to remove
+        tag: String,
+    },
 
     /// Manage the default version
     Default {
@@ -28,22 +38,30 @@ pub enum Cmd {
     },
 
     /// Manage preferences
+    #[command(alias = "p")]
     Prefs {
         #[clap(subcommand)]
         cmd: PrefsSubCmd,
     },
 
-    #[command(alias = "u")]
     /// Update the default version
+    #[command(alias = "u")]
     Update,
 
     /// Force update check
+    #[command(alias = "U")]
     CheckUpdate,
 
-    #[command(alias = "e")]
     /// Manage extensions
+    #[command(alias = "e")]
     Extensions {
         #[clap(subcommand)]
         cmd: ExtSubcommand,
+    },
+
+    /// Manage ghidra settings
+    Settings {
+        #[clap(subcommand)]
+        cmd: SettingsSubcommand,
     },
 }

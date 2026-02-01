@@ -1,21 +1,28 @@
 mod extensions;
 
+use crate::backups::GvmConfig;
 use crate::cache::Cacher;
 use anyhow::Context;
 use chrono::Utc;
 use notify_rust::Notification;
+use std::io::{Cursor, Read, Write};
 use std::os::unix::process::CommandExt;
 use std::process::Command;
 use clap::Parser;
 use tracing::level_filters::LevelFilter;
 use tracing::{debug, error, info, warn};
 use tracing_subscriber::EnvFilter;
+use zip::write::SimpleFileOptions;
+use zip::{CompressionMethod, ZipArchive, ZipWriter};
 use crate::args::args::Args;
 use crate::args::cmd::Cmd;
 use crate::args::default_subcommand::DefaultSubCmd;
 use crate::args::prefs_subcommand::PrefsSubCmd;
+use crate::args::settings_subcommand::SettingsSubcommand;
 
+pub mod backups;
 pub mod cache;
+pub mod ghidra_props_parser;
 pub mod install;
 pub mod args;
 
@@ -23,7 +30,7 @@ pub mod args;
 ///
 /// Returns Ok(true) if there is an update, Ok(false) if not
 /// Updates the cache with the new version if one is fone otherwise it is unchanged
-/// 
+///
 /// # Errors
 /// Returns error if the update check
 pub async fn update_latest_version(cacher: &mut Cacher) -> anyhow::Result<bool> {
@@ -108,6 +115,91 @@ async fn main() -> anyhow::Result<()> {
     }
 
     match &args.cmd {
+        Cmd::Settings { cmd } => match cmd {
+            SettingsSubcommand::Restore { src, tag } => {
+                if !cfg!(unix) {
+                    error!("This command is only supported on unix");
+                    return Ok(());
+                }
+
+                let tag = match tag {
+                    Some(tag) => match tag.as_str() {
+                        "default" => cacher.default_explicit(),
+                        "latest" => cacher.cache.latest_known.clone(),
+                        _ => tag.to_string(),
+                    },
+                    None => cacher.default_explicit(),
+                };
+
+                if let Some(cache_entry) = cacher.cache.entries.get(&tag) {
+                    let name = cache_entry.path.file_name().unwrap();
+                    let pref_path = home
+                        .join("./.config/ghidra/")
+                        .join(name)
+                        .join("./preferences");
+
+                    let zip_data = Cursor::new(std::fs::read(src)?);
+                    let mut zip = ZipArchive::new(zip_data)?;
+
+                    let mut prefs = zip.by_path("/prefs").context("Prefs not found")?;
+                    let mut prefs_data = Vec::new();
+                    prefs.read_to_end(&mut prefs_data)?;
+                    drop(prefs);
+
+                    let mut cfg = zip.by_path("/gvm_config.toml").context("Config not found")?;
+                    let mut cfg_data = Vec::new();
+                    cfg.read_to_end(&mut cfg_data)?;
+                    let cfg = toml::from_slice::<GvmConfig>(&cfg_data)?;
+
+                    println!("Restoring backup version {} from {}", cfg.version, cfg.tag);
+
+                    std::fs::write(pref_path, prefs_data)?;
+                } else {
+                    error!("That version isn't installed");
+                }
+            }
+            SettingsSubcommand::Backup { tag, out } => {
+                if !cfg!(unix) {
+                    error!("This command is only supported on unix");
+                    return Ok(());
+                }
+
+                let tag = match tag {
+                    Some(tag) => match tag.as_str() {
+                        "default" => cacher.default_explicit(),
+                        "latest" => cacher.cache.latest_known.clone(),
+                        _ => tag.to_string(),
+                    },
+                    None => cacher.default_explicit(),
+                };
+
+                if let Some(cache_entry) = cacher.cache.entries.get(&tag) {
+                    let name = cache_entry.path.file_name().unwrap();
+                    let pref_path = home
+                        .join("./.config/ghidra/")
+                        .join(name)
+                        .join("./preferences");
+                    let prefs_data =
+                        std::fs::read(&pref_path).context("Failed to read ghidra prefs")?;
+
+                    let mut zip_out = Cursor::new(Vec::new());
+                    let options = SimpleFileOptions::default()
+                        .compression_method(CompressionMethod::Deflated);
+                    let mut zip = ZipWriter::new(&mut zip_out);
+                    zip.start_file("prefs", options)?;
+                    zip.write_all(&prefs_data)?;
+
+                    zip.start_file("gvm_config.toml", options)?;
+                    zip.write_all(toml::to_string(&GvmConfig { version: 0, tag })?.as_bytes())?;
+
+                    zip.finish()?;
+
+                    std::fs::write(out, zip_out.into_inner()).context("Failed to save backup")?;
+                } else {
+                    error!("That version isn't installed");
+                }
+            }
+        },
         Cmd::CheckUpdate => {
             // Note: Not saving here so we don't lose the old value here if the check fails
             cacher.cache.latest_known = String::new();
@@ -116,7 +208,7 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Cmd::Extensions { cmd } => {
-            extensions::handle_ext_cmd(&mut cacher, &path, &args, cmd).await?;
+            extensions::handle_ext_cmd(&mut cacher, &path, &args, &cmd).await?;
         }
         Cmd::Update => {
             if cacher.cache.default != "latest" {
@@ -152,12 +244,22 @@ async fn main() -> anyhow::Result<()> {
                 } else {
                     "no"
                 };
-                info!("Use PyGhidra in launchers? [{yn}]");
+                info!("Use PyGhidra in launchers? {{py3}} [{yn}]");
+                info!(
+                    "Override ui scale {{scale}} [{}]",
+                    cacher.cache.prefs.ui_scale_override
+                );
             }
             PrefsSubCmd::Set { key, value } => match key.as_str() {
                 "py3" => {
                     cacher.with_cache(|c: &mut cache::Cache| {
                         c.prefs.pyghidra = *value == "true";
+                    })?;
+                }
+                "scale" => {
+                    cacher.with_cache(|c: &mut cache::Cache| {
+                        c.prefs.ui_scale_override =
+                            value.parse::<u32>().expect("Failed to parse as number");
                     })?;
                 }
                 _ => error!("Unknown key"),
@@ -229,7 +331,7 @@ async fn main() -> anyhow::Result<()> {
             }
         }
         Cmd::Install { tag } => {
-            install::install_version(&mut cacher, &args, &path, tag).await?;
+            install::install_version(&mut cacher, &args, &path, &tag).await?;
         }
         Cmd::List => {
             let octocrab = octocrab::instance();
