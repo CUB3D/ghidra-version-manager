@@ -182,7 +182,8 @@ async fn main() -> anyhow::Result<()> {
                 {
                     info!("Backing up config from last launched version {last_launched}");
                     Some(
-                        BackupGenerator::from_cached_version(original_version, &last_launched)?.restorer(),
+                        BackupGenerator::from_cached_version(original_version, &last_launched)?
+                            .restorer(),
                     )
                 } else {
                     None
@@ -283,7 +284,8 @@ async fn main() -> anyhow::Result<()> {
                 {
                     info!("Backing up config from last launched version {last_launched}");
                     Some(
-                        BackupGenerator::from_cached_version(original_version, &last_launched)?.restorer(),
+                        BackupGenerator::from_cached_version(original_version, &last_launched)?
+                            .restorer(),
                     )
                 } else {
                     None
@@ -295,7 +297,7 @@ async fn main() -> anyhow::Result<()> {
                     && let Some(restorer) = restorer
                     && let Some(new_version) = cacher.cache.entries.get(&tag)
                 {
-                    info!("Restoring config to {latest}");
+                    info!("Restoring config to {tag}");
                     restorer.restore_to_cached_version(new_version)?;
                 }
             }
