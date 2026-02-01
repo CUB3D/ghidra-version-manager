@@ -48,7 +48,7 @@ pub struct ExtDef {
     /// With this we assume that the git stores /<module> and install <module> to Processors/<name>/
     pub no_prefix: Option<bool>,
 
-    /// Which branch to checkout for git modules
+    /// Which branch to check out for git modules
     pub branch_name: Option<String>,
 }
 

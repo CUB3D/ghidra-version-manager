@@ -1,107 +1,23 @@
 mod extensions;
 
 use crate::cache::Cacher;
-use crate::extensions::ExtSubcommand;
 use anyhow::Context;
 use chrono::Utc;
-use clap::{Parser, Subcommand};
 use notify_rust::Notification;
 use std::os::unix::process::CommandExt;
 use std::process::Command;
+use clap::Parser;
 use tracing::level_filters::LevelFilter;
 use tracing::{debug, error, info, warn};
 use tracing_subscriber::EnvFilter;
+use crate::args::args::Args;
+use crate::args::cmd::Cmd;
+use crate::args::default_subcommand::DefaultSubCmd;
+use crate::args::prefs_subcommand::PrefsSubCmd;
 
 pub mod cache;
 pub mod install;
-
-#[derive(Parser, Debug)]
-#[command(version, about, long_about = None)]
-pub struct Args {
-    #[command(subcommand)]
-    pub cmd: Cmd,
-
-    /// Enable expanded logging
-    #[arg(short, long, default_value = "false")]
-    pub verbose: bool,
-
-    /// Disable network access
-    #[arg(short, long, default_value = "false")]
-    pub offline: bool,
-
-    /// Run in launcher mode
-    #[arg(short, long, default_value = "false")]
-    launcher: bool,
-}
-
-#[derive(Debug, Subcommand)]
-pub enum DefaultSubCmd {
-    /// Display the current Ghidra version
-    Show,
-
-    /// Set the default version, installing it if needed
-    Set { tag: String },
-}
-
-#[derive(Debug, Subcommand)]
-pub enum PrefsSubCmd {
-    /// Display the current prefs
-    Show,
-
-    /// Set the prefs
-    Set {
-        /// The key to set
-        key: String,
-
-        /// The new value
-        value: String,
-    },
-}
-
-#[derive(Debug, Subcommand)]
-pub enum Cmd {
-    #[command(alias = "ls")]
-    /// List the available Ghidra versions
-    List,
-
-    #[command(alias = "i")]
-    /// Install a Ghidra version
-    Install { tag: String },
-
-    #[command(alias = "r")]
-    /// Launch Ghidra, unless specified launches the default version
-    Run { tag: Option<String> },
-
-    #[command(alias = "del")]
-    /// Remove a Ghidra version
-    Uninstall { tag: String },
-
-    /// Manage the default version
-    Default {
-        #[clap(subcommand)]
-        cmd: DefaultSubCmd,
-    },
-
-    /// Manage preferences
-    Prefs {
-        #[clap(subcommand)]
-        cmd: PrefsSubCmd,
-    },
-
-    #[command(alias = "u")]
-    /// Update the default version
-    Update,
-
-    /// Force update check
-    CheckUpdate,
-
-    #[command(alias = "e")]
-    /// Manage extensions
-    Extensions {
-        #[clap(subcommand)]
-        cmd: ExtSubcommand,
-    },
-}
+pub mod args;
 
 /// Check if there is an update available
 ///
