@@ -27,3 +27,6 @@
 - `gvm update` will now automatically backup and restore preferences from the old version to the new one
 - - This also applies to automatic updates from `gvm run`
 - Installation will no longer try and cache downloads for release builds, this prevents `Could not find EOCD` errors when resuming after an interrupted download
+
+## 0.7.0
+- New command `gvm locate` to get the path to a Ghidra install directory

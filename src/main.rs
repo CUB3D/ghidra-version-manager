@@ -20,6 +20,7 @@ use tracing_subscriber::EnvFilter;
 
 pub mod args;
 pub mod cache;
+mod exit_codes;
 pub mod ghidra_props_parser;
 pub mod install;
 mod prefs_backup;
@@ -100,16 +101,34 @@ async fn main() -> anyhow::Result<()> {
     let cache_path = path.join("cache.toml");
     let mut cacher = Cacher::load(cache_path)?;
 
-    if Utc::now()
-        .signed_duration_since(cacher.cache.last_update_check)
-        .num_hours()
-        > 18
+    if args.cmd.allow_update_check()
+        && Utc::now()
+            .signed_duration_since(cacher.cache.last_update_check)
+            .num_hours()
+            > 18
         || cacher.cache.latest_known.is_empty()
     {
         do_update_check(&mut cacher, &args).await?;
     }
 
     match &args.cmd {
+        Cmd::Locate { tag } => {
+            let tag = match tag {
+                Some(tag) => match tag.as_str() {
+                    "default" => cacher.default_explicit(),
+                    "latest" => cacher.cache.latest_known.clone(),
+                    _ => tag.to_string(),
+                },
+                None => cacher.default_explicit(),
+            };
+
+            if let Some(cache_entry) = cacher.cache.entries.get(&tag) {
+                println!("{}", cache_entry.path.display());
+            } else {
+                eprintln!("Not found");
+                std::process::exit(exit_codes::EXIT_CODE_NOT_FOUND);
+            }
+        }
         Cmd::Settings { cmd } => match cmd {
             SettingsSubcommand::Restore { src, tag } => {
                 if !cfg!(unix) {

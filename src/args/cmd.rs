@@ -59,9 +59,24 @@ pub enum Cmd {
         cmd: ExtSubcommand,
     },
 
-    /// Manage ghidra settings
+    /// Manage Ghidra settings
     Settings {
         #[clap(subcommand)]
         cmd: SettingsSubcommand,
     },
+
+    /// Get the path to a given Ghidra version
+    Locate {
+        /// The version to find
+        tag: Option<String>,
+    },
+}
+
+impl Cmd {
+    pub fn allow_update_check(&self) -> bool {
+        !matches!(
+            self,
+            Self::Locate { .. } | Self::List | Self::Settings { .. } | Self::Prefs { .. }
+        )
+    }
 }
