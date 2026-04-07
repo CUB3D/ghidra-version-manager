@@ -30,3 +30,6 @@
 
 ## 0.7.0
 - New command `gvm locate` to get the path to a Ghidra install directory
+
+## 0.7.1
+- Fixed desktop entry to use PNG rather than ICO for icon, fixing corruption on Gnome

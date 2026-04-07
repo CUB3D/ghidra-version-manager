@@ -185,14 +185,14 @@ pub async fn install_version(
         let ico_file = File::open(&ico_file_path)?;
         let ico_parsed = IconDir::read(ico_file)?;
         let ico_decoded = ico_parsed.entries()[0].decode()?;
-        let ico_as_png_file = File::create(icon_path)?;
+        let ico_as_png_file = File::create(&icon_path)?;
         ico_decoded.write_png(&ico_as_png_file)?;
 
         let mut entry = "[Desktop Entry]\n".to_string();
         let _ = writeln!(entry, "Name=Ghidra ({version})");
         entry.push_str("Comment=Ghidra\n");
         let _ = writeln!(entry, "Exec={exec}");
-        let _ = writeln!(entry, "Icon={ico_file_path}");
+        let _ = writeln!(entry, "Icon={icon_path}");
         entry.push_str("Type=Application\n");
         entry.push_str("Categories=Development\n");
         entry.push_str("StartupWMClass=ghidra-Ghidra\n");
