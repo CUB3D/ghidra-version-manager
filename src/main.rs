@@ -269,18 +269,45 @@ async fn main() -> anyhow::Result<()> {
             };
 
             if let Some(cache_entry) = cacher.cache.entries.get(&tag) {
-                std::fs::remove_dir_all(&cache_entry.path).context("Failed to delete directory")?;
-                if let Some(launcher) = &cache_entry.launcher {
-                    if std::fs::metadata(launcher)?.is_dir() {
-                        std::fs::remove_dir_all(launcher).context("Failed to delete launcher")?;
-                    } else {
-                        std::fs::remove_file(launcher).context("Failed to delete launcher")?;
-                    }
+                match std::fs::remove_dir_all(&cache_entry.path) {
+                    Ok(_) => info!("Deleted '{}'", cache_entry.path.display()),
+                    Err(e) => warn!("Failed to delete '{}': {e:?}", cache_entry.path.display()),
                 }
 
-                cacher.with_cache(|c| {
-                    c.entries.remove(&tag);
-                })?;
+                if let Some(launcher) = &cache_entry.launcher {
+                    if std::fs::exists(launcher).context("Failed to check launcher existence")? {
+                        if std::fs::metadata(launcher)
+                            .context("Failed to get launcher metadata")?
+                            .is_dir()
+                        {
+                            std::fs::remove_dir_all(launcher)
+                                .context("Failed to delete launcher")?;
+                        } else {
+                            match std::fs::remove_file(launcher) {
+                                Ok(_) => info!("Deleted launcher '{}'", launcher.display()),
+                                Err(e) => {
+                                    warn!(
+                                        "Failed to delete launcher '{}': {e:?}",
+                                        launcher.display()
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        info!(
+                            "Not deleting launcher, path '{}' not found",
+                            launcher.display()
+                        );
+                    }
+                } else {
+                    info!("Not deleting launcher, not present in cache");
+                }
+
+                cacher
+                    .with_cache(|c| {
+                        c.entries.remove(&tag);
+                    })
+                    .context("Failed to update cache")?;
             } else {
                 error!("That version isn't installed");
             }

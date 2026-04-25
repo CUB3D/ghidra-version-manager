@@ -33,3 +33,6 @@
 
 ## 0.7.1
 - Fixed desktop entry to use PNG rather than ICO for icon, fixing corruption on Gnome
+
+## 0.7.2
+- `gvm del` is now much more resilient against missing files 

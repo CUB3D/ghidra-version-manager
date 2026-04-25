@@ -71,16 +71,13 @@ impl Cacher {
             info!("No cache found, it will be created");
             Cache::default()
         } else {
-            match std::fs::read_to_string(&cache_path)
+            std::fs::read_to_string(&cache_path)
                 .context("Failed to read cache data")
                 .and_then(|s| toml::from_str(&s).context("Failed to parse cache data"))
-            {
-                Ok(c) => c,
-                Err(e) => {
+                .unwrap_or_else(|e| {
                     error!("Failed to load old cache {e}");
                     Cache::default()
-                }
-            }
+                })
         };
 
         Ok(Self {
@@ -91,12 +88,12 @@ impl Cacher {
 
     pub fn with_cache(&mut self, f: impl FnOnce(&mut Cache)) -> anyhow::Result<()> {
         f(&mut self.cache);
-        self.save()?;
+        self.save().context("Failed to save cache")?;
         Ok(())
     }
 
     pub fn save(&self) -> anyhow::Result<()> {
-        let s = toml::to_string(&self.cache)?;
+        let s = toml::to_string(&self.cache).context("Failed to serialize cache data")?;
         std::fs::write(&self.cache_path, &s).context("Failed to write cache data")?;
         Ok(())
     }
