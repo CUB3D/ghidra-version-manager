@@ -17,24 +17,24 @@ path = "src/main.rs"
 name = "gvm"
 
 [dependencies]
-octocrab = { version = "=0.49.8", default-features = false, features = ["follow-redirect", "retry", "rustls", "timeout", "tracing", "default-client", "jwt-rust-crypto"] }
-tokio = { version = "=1.52.1", default-features = false, features = ["macros", "rt-multi-thread", "fs", "tracing"] }
+octocrab = { version = "=0.53.1", default-features = false, features = ["follow-redirect", "retry", "rustls", "timeout", "tracing", "default-client", "jwt-rust-crypto"] }
+tokio = { version = "=1.52.3", default-features = false, features = ["macros", "rt-multi-thread", "fs", "tracing"] }
 tracing-subscriber = { version = "=0.3.23", default-features = false, features = ["env-filter", "fmt", "std", "ansi"] }
 tracing = { version = "=0.1.44", default-features = false, features = ["std"] }
 clap = { version = "=4.6.1", default-features = false, features = ["derive", "std", "color", "error-context", "unicode", "usage", "suggestions", "help", "deprecated"] }
 anyhow = { version = "=1.0.102", default-features = false, features = ["std", "backtrace"] }
-reqwest = { version = "=0.13.2", default-features = false, features = ["stream", "rustls", "gzip", "deflate", "brotli", "zstd"] }
+reqwest = { version = "=0.13.4", default-features = false, features = ["stream", "rustls", "gzip", "deflate", "brotli", "zstd"] }
 futures-util = { version = "0.3.32", default-features = false, features = ["std"] }
 indicatif = { version = "=0.18.4", default-features = false, features = ["improved_unicode"] }
 zip = { version = "=8.6.0", default-features = false, features = ["deflate"] }
 toml = { version = "=1.1.2", default-features = false, features = ["std", "display", "parse", "serde"] }
 serde = { version = "=1.0.228", default-features = false, features = ["derive", "std"]}
-chrono = { version = "=0.4.44" }
+chrono = { version = "=0.4.45" }
 notify-rust = { version = "=4.16.0" }
 
 include_directory = {version = "=0.1.1", default-features = false, features = ["glob"]}
 flate2 = {version = "=1.1.9", default-features = false, features = ["zlib-rs"]}
-tar = {version = "=0.4.45", default-features = false, features = []}
+tar = {version = "=0.4.46", default-features = false, features = []}
 ico = {version = "=0.5.0", default-features = false, features = [] }
 
 [profile.dev.package."*"]
