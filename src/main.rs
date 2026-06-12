@@ -68,7 +68,7 @@ async fn do_update_check(cacher: &mut Cacher, args: &Args) -> anyhow::Result<boo
     // Show update notification if running in launcher mode
     if new_version && args.launcher {
         let _ = Notification::new()
-            .summary("New ghidra version available")
+            .summary(&format!("New ghidra version available: {}", cacher.cache.latest_known))
             .icon("ghidra")
             .show();
     }
