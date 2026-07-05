@@ -17,32 +17,40 @@ impl BackupRestorer {
         })
     }
     pub fn restore_to_cached_version(&self, cache_entry: &CacheEntry) -> anyhow::Result<()> {
-        let home = std::env::home_dir().context("Couldn't determine home directory")?;
-
-        let name = cache_entry.path.file_name().unwrap();
-        let pref_path = home
-            .join("./.config/ghidra/")
-            .join(name)
-            .join("./preferences");
+        let pref_path = cache_entry
+            .preferences_path()
+            .context("Failed to get preferences path")?;
 
         let zip_data = Cursor::new(&self.backup_data);
         let mut zip = ZipArchive::new(zip_data)?;
 
         let mut prefs = zip.by_path("/prefs").context("Prefs not found")?;
         let mut prefs_data = Vec::new();
-        prefs.read_to_end(&mut prefs_data)?;
+        prefs
+            .read_to_end(&mut prefs_data)
+            .context("Failed to read backup file")?;
         drop(prefs);
 
         let mut cfg = zip
             .by_path("/gvm_config.toml")
             .context("Config not found")?;
         let mut cfg_data = Vec::new();
-        cfg.read_to_end(&mut cfg_data)?;
-        let cfg = toml::from_slice::<GvmConfig>(&cfg_data)?;
+        cfg.read_to_end(&mut cfg_data)
+            .context("Failed to read /gvm_config.toml from backup archive")?;
+        let cfg =
+            toml::from_slice::<GvmConfig>(&cfg_data).context("Failed to parse gvm_config.toml")?;
 
         info!("Restoring backup version {} from {}", cfg.version, cfg.tag);
 
-        std::fs::write(pref_path, prefs_data)?;
+        // If you haven't launched the new version (e.g. this is an auto restore to a newly installed version)
+        // Then the config path won't exist yet
+        if !pref_path.exists() {
+            info!("This version hasn't been launched before, creating directories");
+            std::fs::create_dir_all(pref_path.parent().unwrap())
+                .context("Failed to create directories")?;
+        }
+
+        std::fs::write(pref_path, prefs_data).context("Failed to write preferences file")?;
 
         Ok(())
     }

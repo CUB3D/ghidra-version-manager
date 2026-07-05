@@ -19,6 +19,34 @@ pub struct CacheEntry {
     pub extensions: HashMap<String, ExtEntry>,
 }
 
+impl CacheEntry {
+    /// Get the path to the `preferences` file in the Ghidra config directory
+    /// On linux this is in `~/.config/ghidra/<version>/preferences`
+    /// On macOS this is in `~/Library/ghidra/<version>/preferences
+    /// On Windows this is in TODO
+    pub fn preferences_path(&self) -> anyhow::Result<PathBuf> {
+        let home = std::env::home_dir().context("Couldn't determine home directory")?;
+
+        let name = self.path.file_name().unwrap();
+
+        let pref_path = if cfg!(target_os = "linux") {
+            home.join("./.config/ghidra/")
+                .join(name)
+                .join("./preferences")
+        } else if cfg!(target_os = "macos") {
+            home.join("./Library/ghidra/")
+                .join(name)
+                .join("./preferences")
+        } else {
+            return Err(anyhow::anyhow!(
+                "Sorry but we don't know how to backup settings on this platform yet"
+            ));
+        };
+
+        Ok(pref_path)
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Prefs {
     pub pyghidra: bool,

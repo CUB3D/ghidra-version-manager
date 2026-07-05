@@ -4,3 +4,4 @@ repo_user = "google"
 repo_repo = "binexport"
 
 kind="DownloadOnly"
+#TODO: should use this url: https://github.com/google/binexport/releases/download/v12-20240417-ghidra_11.0.3/BinExport_Ghidra-Java.zip

@@ -12,13 +12,10 @@ pub struct BackupGenerator {
 
 impl BackupGenerator {
     pub fn from_cached_version(cache_entry: &CacheEntry, tag: &str) -> anyhow::Result<Self> {
-        let home = std::env::home_dir().context("Couldn't determine home directory")?;
+        let pref_path = cache_entry
+            .preferences_path()
+            .context("Failed to get preferences path")?;
 
-        let name = cache_entry.path.file_name().unwrap();
-        let pref_path = home
-            .join("./.config/ghidra/")
-            .join(name)
-            .join("./preferences");
         let prefs_data = std::fs::read(&pref_path).context("Failed to read ghidra prefs")?;
 
         let mut zip_out = Cursor::new(Vec::new());

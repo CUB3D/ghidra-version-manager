@@ -36,3 +36,7 @@
 
 ## 0.7.2
 - `gvm del` is now much more resilient against missing files 
+
+## 0.7.3
+- `gvm settings` now uses the correct path on macOS
+- Updates restore backup without errors

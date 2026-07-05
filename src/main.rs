@@ -68,7 +68,10 @@ async fn do_update_check(cacher: &mut Cacher, args: &Args) -> anyhow::Result<boo
     // Show update notification if running in launcher mode
     if new_version && args.launcher {
         let _ = Notification::new()
-            .summary(&format!("New ghidra version available: {}", cacher.cache.latest_known))
+            .summary(&format!(
+                "New ghidra version available: {}",
+                cacher.cache.latest_known
+            ))
             .icon("ghidra")
             .show();
     }
@@ -148,7 +151,7 @@ async fn main() -> anyhow::Result<()> {
                 if let Some(cache_entry) = cacher.cache.entries.get(&tag) {
                     BackupRestorer::from_path(src)?.restore_to_cached_version(cache_entry)?;
                 } else {
-                    error!("That version isn't installed");
+                    error!("Ghidra '{tag}' isn't installed");
                 }
             }
             SettingsSubcommand::Backup { tag, out } => {
@@ -169,8 +172,9 @@ async fn main() -> anyhow::Result<()> {
                 if let Some(cache_entry) = cacher.cache.entries.get(&tag) {
                     let backup = BackupGenerator::from_cached_version(cache_entry, &tag)?;
                     std::fs::write(out, backup.backup_data).context("Failed to save backup")?;
+                    info!("Backup saved to '{}'", out.display());
                 } else {
-                    error!("That version isn't installed");
+                    error!("Ghidra '{tag}' isn't installed");
                 }
             }
         },
@@ -309,7 +313,7 @@ async fn main() -> anyhow::Result<()> {
                     })
                     .context("Failed to update cache")?;
             } else {
-                error!("That version isn't installed");
+                error!("Ghidra '{tag}' isn't installed");
             }
         }
         Cmd::Run { tag } => {
