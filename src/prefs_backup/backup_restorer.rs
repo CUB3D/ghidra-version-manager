@@ -3,6 +3,7 @@ use crate::prefs_backup::gvm_config::GvmConfig;
 use anyhow::Context;
 use std::io::{Cursor, Read};
 use std::path::Path;
+use std::path::PathBuf;
 use tracing::info;
 use zip::ZipArchive;
 
@@ -24,19 +25,22 @@ impl BackupRestorer {
         let zip_data = Cursor::new(&self.backup_data);
         let mut zip = ZipArchive::new(zip_data)?;
 
-        let mut prefs = zip.by_path("/prefs").context("Prefs not found")?;
+        let root = PathBuf::from(std::path::MAIN_SEPARATOR.to_string());
+        let prefs = root.join("prefs");
+        let mut prefs = zip.by_path(prefs).context("Prefs not found")?;
         let mut prefs_data = Vec::new();
         prefs
             .read_to_end(&mut prefs_data)
             .context("Failed to read backup file")?;
         drop(prefs);
 
-        let mut cfg = zip
-            .by_path("/gvm_config.toml")
-            .context("Config not found")?;
+        let cfg_path = root.join("gvm_config.toml");
+        let mut cfg = zip.by_path(&cfg_path).context("Config not found")?;
         let mut cfg_data = Vec::new();
-        cfg.read_to_end(&mut cfg_data)
-            .context("Failed to read /gvm_config.toml from backup archive")?;
+        cfg.read_to_end(&mut cfg_data).context(format!(
+            "Failed to read '{}' from backup archive",
+            cfg_path.display()
+        ))?;
         let cfg =
             toml::from_slice::<GvmConfig>(&cfg_data).context("Failed to parse gvm_config.toml")?;
 

@@ -40,3 +40,7 @@
 ## 0.7.3
 - `gvm settings` now uses the correct path on macOS
 - Updates restore backup without errors
+
+## 0.7.4
+- `gvm settings` now supports Windows
+- Updates on Windows will now automatically backup and restore preferences, just like on Unix platforms

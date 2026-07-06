@@ -22,8 +22,8 @@ pub struct CacheEntry {
 impl CacheEntry {
     /// Get the path to the `preferences` file in the Ghidra config directory
     /// On linux this is in `~/.config/ghidra/<version>/preferences`
-    /// On macOS this is in `~/Library/ghidra/<version>/preferences
-    /// On Windows this is in TODO
+    /// On macOS this is in `~/Library/ghidra/<version>/preferences`
+    /// On Windows this is in `%appdata%/Roaming/ghidra/<version>/preferences`
     pub fn preferences_path(&self) -> anyhow::Result<PathBuf> {
         let home = std::env::home_dir().context("Couldn't determine home directory")?;
 
@@ -35,6 +35,10 @@ impl CacheEntry {
                 .join("./preferences")
         } else if cfg!(target_os = "macos") {
             home.join("./Library/ghidra/")
+                .join(name)
+                .join("./preferences")
+        } else if cfg!(target_os = "windows") {
+            home.join("./AppData/Roaming/ghidra")
                 .join(name)
                 .join("./preferences")
         } else {

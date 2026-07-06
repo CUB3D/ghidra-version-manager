@@ -11,8 +11,6 @@ use crate::prefs_backup::backup_restorer::BackupRestorer;
 use anyhow::Context;
 use chrono::Utc;
 use clap::Parser;
-use notify_rust::Notification;
-use std::os::unix::process::CommandExt;
 use std::process::Command;
 use tracing::level_filters::LevelFilter;
 use tracing::{debug, error, info, warn};
@@ -23,7 +21,8 @@ pub mod cache;
 mod exit_codes;
 pub mod ghidra_props_parser;
 pub mod install;
-mod prefs_backup;
+pub mod prefs_backup;
+pub mod update_notification;
 
 /// Check if there is an update available
 ///
@@ -67,13 +66,7 @@ async fn do_update_check(cacher: &mut Cacher, args: &Args) -> anyhow::Result<boo
 
     // Show update notification if running in launcher mode
     if new_version && args.launcher {
-        let _ = Notification::new()
-            .summary(&format!(
-                "New ghidra version available: {}",
-                cacher.cache.latest_known
-            ))
-            .icon("ghidra")
-            .show();
+        update_notification::show_update_notification(cacher);
     }
     cacher.with_cache(|c| c.last_update_check = Utc::now())?;
 
@@ -134,11 +127,6 @@ async fn main() -> anyhow::Result<()> {
         }
         Cmd::Settings { cmd } => match cmd {
             SettingsSubcommand::Restore { src, tag } => {
-                if !cfg!(unix) {
-                    error!("This command is only supported on unix");
-                    return Ok(());
-                }
-
                 let tag = match tag {
                     Some(tag) => match tag.as_str() {
                         "default" => cacher.default_explicit(),
@@ -155,11 +143,6 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
             SettingsSubcommand::Backup { tag, out } => {
-                if !cfg!(unix) {
-                    error!("This command is only supported on unix");
-                    return Ok(());
-                }
-
                 let tag = match tag {
                     Some(tag) => match tag.as_str() {
                         "default" => cacher.default_explicit(),
@@ -329,22 +312,20 @@ async fn main() -> anyhow::Result<()> {
             if !cacher.is_installed(&tag) {
                 // Backup prefs for current version
                 let last_launched = cacher.cache.last_launched.clone();
-                let restorer = if cfg!(unix)
-                    && let Some(original_version) = cacher.cache.entries.get(&last_launched)
-                {
-                    info!("Backing up config from last launched version {last_launched}");
-                    Some(
-                        BackupGenerator::from_cached_version(original_version, &last_launched)?
-                            .restorer(),
-                    )
-                } else {
-                    None
-                };
+                let restorer =
+                    if let Some(original_version) = cacher.cache.entries.get(&last_launched) {
+                        info!("Backing up config from last launched version {last_launched}");
+                        Some(
+                            BackupGenerator::from_cached_version(original_version, &last_launched)?
+                                .restorer(),
+                        )
+                    } else {
+                        None
+                    };
 
                 install::install_version(&mut cacher, &args, &path, &tag).await?;
 
-                if cfg!(unix)
-                    && let Some(restorer) = restorer
+                if let Some(restorer) = restorer
                     && let Some(new_version) = cacher.cache.entries.get(&tag)
                 {
                     info!("Restoring config to {tag}");
@@ -376,9 +357,14 @@ async fn main() -> anyhow::Result<()> {
                 return Ok(());
             }
             info!("Launching {}", runner.display());
-            if cfg!(target_os = "linux") {
+            #[cfg(target_family = "unix")]
+            {
+                use std::os::unix::process::CommandExt;
                 return Err(anyhow::anyhow!(Command::new(&runner).exec()));
-            } else {
+            }
+
+            #[cfg(not(target_family = "unix"))]
+            {
                 Command::new(&runner).spawn()?;
             }
         }

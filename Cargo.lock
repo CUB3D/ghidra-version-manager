@@ -1068,7 +1068,7 @@ dependencies = [
 
 [[package]]
 name = "ghidra-version-manager"
-version = "0.7.3"
+version = "0.7.4"
 dependencies = [
  "anyhow",
  "chrono",
