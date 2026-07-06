@@ -1,3 +1,5 @@
+#![deny(missing_copy_implementations)]
+
 mod extensions;
 
 use crate::args::arguments::Args;
@@ -8,12 +10,15 @@ use crate::args::settings_subcommand::SettingsSubcommand;
 use crate::cache::Cacher;
 use crate::prefs_backup::backup_generator::BackupGenerator;
 use crate::prefs_backup::backup_restorer::BackupRestorer;
+use crate::update_checker::UpdateCheckResults;
+use crate::update_notification::UpdateDialogAction;
 use anyhow::Context;
 use chrono::Utc;
 use clap::Parser;
+use std::path::PathBuf;
 use std::process::Command;
 use tracing::level_filters::LevelFilter;
-use tracing::{debug, error, info, warn};
+use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
 
 pub mod args;
@@ -22,12 +27,13 @@ mod exit_codes;
 pub mod ghidra_props_parser;
 pub mod install;
 pub mod prefs_backup;
+mod update_checker;
 pub mod update_notification;
 
 /// Check if there is an update available
 ///
-/// Returns Ok(true) if there is an update, Ok(false) if not
-/// Updates the cache with the new version if one is fone otherwise it is unchanged
+/// Returns `Ok(true)` if there is an update, `Ok(false)` if not
+/// Updates the cache with the new version if one is found otherwise it is unchanged
 ///
 /// # Errors
 /// Returns error if the update check
@@ -53,24 +59,40 @@ pub async fn update_latest_version(cacher: &mut Cacher) -> anyhow::Result<bool> 
     Ok(false)
 }
 
-async fn do_update_check(cacher: &mut Cacher, args: &Args) -> anyhow::Result<bool> {
-    debug!("Checking for updates");
-
-    let new_version = match update_latest_version(cacher).await {
-        Ok(v) => v,
-        Err(e) => {
-            warn!("Failed to check for update: {e:?}");
-            return Ok(false);
-        }
+pub async fn update_with_prefs_backup(
+    cacher: &mut Cacher,
+    args: &Args,
+    path: &PathBuf,
+    tag: &str,
+) -> anyhow::Result<()> {
+    // Backup prefs for current version
+    let last_launched = cacher.cache.last_launched.clone();
+    let restorer = if let Some(original_version) = cacher.cache.entries.get(&last_launched) {
+        info!("Backing up config from last launched version {last_launched}");
+        Some(BackupGenerator::from_cached_version(original_version, &last_launched)?.restorer())
+    } else {
+        None
     };
 
-    // Show update notification if running in launcher mode
-    if new_version && args.launcher {
-        update_notification::show_update_notification(cacher);
-    }
-    cacher.with_cache(|c| c.last_update_check = Utc::now())?;
+    install::install_version(cacher, args, path, tag).await?;
 
-    Ok(new_version)
+    if let Some(restorer) = restorer
+        && let Some(new_version) = cacher.cache.entries.get(tag)
+    {
+        info!("Restoring config to {tag}");
+        restorer.restore_to_cached_version(new_version)?;
+    }
+
+    Ok(())
+}
+
+pub fn get_gvm_config_dir() -> anyhow::Result<PathBuf> {
+    let home = std::env::home_dir().context("Couldn't determine home directory")?;
+    Ok(if cfg!(target_family = "unix") {
+        home.join(".local/opt/gvm/")
+    } else {
+        home.join("AppData").join("Local").join("gvm")
+    })
 }
 
 #[tokio::main]
@@ -85,18 +107,14 @@ async fn main() -> anyhow::Result<()> {
 
     let args = Args::parse();
 
-    let home = std::env::home_dir().context("Couldn't determine home directory")?;
-    let path = if cfg!(target_family = "unix") {
-        home.join(".local/opt/gvm/")
-    } else {
-        home.join("AppData").join("Local").join("gvm")
-    };
+    let path = get_gvm_config_dir()?;
 
     let _ = std::fs::create_dir_all(&path);
 
     let cache_path = path.join("cache.toml");
     let mut cacher = Cacher::load(cache_path)?;
 
+    let mut update_results = UpdateCheckResults::default();
     if args.cmd.allow_update_check()
         && Utc::now()
             .signed_duration_since(cacher.cache.last_update_check)
@@ -104,7 +122,18 @@ async fn main() -> anyhow::Result<()> {
             > 18
         || cacher.cache.latest_known.is_empty()
     {
-        do_update_check(&mut cacher, &args).await?;
+        update_results = update_checker::do_update_check(&mut cacher, &args).await?;
+    }
+
+    match update_results.next_action {
+        // User requested to quit without launching
+        // Or to update and exit
+        UpdateDialogAction::Quit => {
+            return Ok(());
+        }
+
+        // Continue as normal
+        UpdateDialogAction::Launch(_) => {}
     }
 
     match &args.cmd {
@@ -164,7 +193,10 @@ async fn main() -> anyhow::Result<()> {
         Cmd::CheckUpdate => {
             // Note: Not saving here so we don't lose the old value here if the check fails
             cacher.cache.latest_known = String::new();
-            if !do_update_check(&mut cacher, &args).await? {
+            if !update_checker::do_update_check(&mut cacher, &args)
+                .await?
+                .new_version_available
+            {
                 info!("You have the latest version, I've checked");
             }
         }
@@ -183,22 +215,20 @@ async fn main() -> anyhow::Result<()> {
             } else {
                 // Backup prefs for current version
                 let last_launched = cacher.cache.last_launched.clone();
-                let restorer = if cfg!(unix)
-                    && let Some(original_version) = cacher.cache.entries.get(&last_launched)
-                {
-                    info!("Backing up config from last launched version {last_launched}");
-                    Some(
-                        BackupGenerator::from_cached_version(original_version, &last_launched)?
-                            .restorer(),
-                    )
-                } else {
-                    None
-                };
+                let restorer =
+                    if let Some(original_version) = cacher.cache.entries.get(&last_launched) {
+                        info!("Backing up config from last launched version {last_launched}");
+                        Some(
+                            BackupGenerator::from_cached_version(original_version, &last_launched)?
+                                .restorer(),
+                        )
+                    } else {
+                        None
+                    };
 
                 install::install_version(&mut cacher, &args, &path, &latest).await?;
 
-                if cfg!(unix)
-                    && let Some(restorer) = restorer
+                if let Some(restorer) = restorer
                     && let Some(new_version) = cacher.cache.entries.get(&latest)
                 {
                     info!("Restoring config to {latest}");
@@ -232,6 +262,10 @@ async fn main() -> anyhow::Result<()> {
                     "Override ui scale {{scale}} [{}]",
                     cacher.cache.prefs.ui_scale_override
                 );
+                info!(
+                    "Prompt to install new versions [{}]",
+                    cacher.cache.prefs.prompt_for_update
+                );
             }
             PrefsSubCmd::Set { key, value } => match key.as_str() {
                 "py3" => {
@@ -243,6 +277,12 @@ async fn main() -> anyhow::Result<()> {
                     cacher.with_cache(|c: &mut cache::Cache| {
                         c.prefs.ui_scale_override =
                             value.parse::<u32>().expect("Failed to parse as number");
+                    })?;
+                }
+                "update-notify" => {
+                    cacher.with_cache(|c: &mut cache::Cache| {
+                        c.prefs.prompt_for_update =
+                            value.parse::<bool>().expect("Failed to parse as bool");
                     })?;
                 }
                 _ => error!("Unknown key"),
@@ -309,28 +349,15 @@ async fn main() -> anyhow::Result<()> {
                 None => cacher.default_explicit(),
             };
 
+            // Apply override due to update if needed
+            let tag = if let UpdateDialogAction::Launch(Some(tag)) = update_results.next_action {
+                tag
+            } else {
+                tag
+            };
+
             if !cacher.is_installed(&tag) {
-                // Backup prefs for current version
-                let last_launched = cacher.cache.last_launched.clone();
-                let restorer =
-                    if let Some(original_version) = cacher.cache.entries.get(&last_launched) {
-                        info!("Backing up config from last launched version {last_launched}");
-                        Some(
-                            BackupGenerator::from_cached_version(original_version, &last_launched)?
-                                .restorer(),
-                        )
-                    } else {
-                        None
-                    };
-
-                install::install_version(&mut cacher, &args, &path, &tag).await?;
-
-                if let Some(restorer) = restorer
-                    && let Some(new_version) = cacher.cache.entries.get(&tag)
-                {
-                    info!("Restoring config to {tag}");
-                    restorer.restore_to_cached_version(new_version)?;
-                }
+                update_with_prefs_backup(&mut cacher, &args, &path, &tag).await?;
             }
             cacher.with_cache(|c| {
                 c.last_launched = tag.clone();

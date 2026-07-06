@@ -1,6 +1,6 @@
 [package]
 name = "ghidra-version-manager"
-version = "0.7.4"
+version = "0.8.0"
 edition = "2024"
 authors = ["CUB3D <callumthom11@gmail.com>"]
 license = "GPL-3.0-only"
@@ -36,6 +36,7 @@ include_directory = {version = "=0.1.1", default-features = false, features = ["
 flate2 = {version = "=1.1.9", default-features = false, features = ["zlib-rs"]}
 tar = {version = "=0.4.46", default-features = false, features = []}
 ico = {version = "=0.5.0", default-features = false, features = [] }
+iced = { version = "=0.14.0", default-features = false, features = ["x11", "wayland", "wgpu", "tiny-skia", "smol"]}
 
 [profile.dev.package."*"]
 opt-level = 3

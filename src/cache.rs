@@ -43,7 +43,7 @@ impl CacheEntry {
                 .join("./preferences")
         } else {
             return Err(anyhow::anyhow!(
-                "Sorry but we don't know how to backup settings on this platform yet"
+                "Sorry but we don't know how to find the preferences file on this platform yet"
             ));
         };
 
@@ -51,11 +51,16 @@ impl CacheEntry {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 pub struct Prefs {
+    /// Should Ghidra be configured to run with PyGhidra or not (Jython)
     pub pyghidra: bool,
 
+    /// Override the UI scale with a new value, fixes scaling on High DPI monitors
     pub ui_scale_override: u32,
+
+    /// Should a prompt to install a new version be shown
+    pub prompt_for_update: bool,
 }
 
 impl Default for Prefs {
@@ -63,6 +68,7 @@ impl Default for Prefs {
         Self {
             pyghidra: false,
             ui_scale_override: 1,
+            prompt_for_update: true,
         }
     }
 }
@@ -136,6 +142,10 @@ impl Cacher {
             "latest" => self.cache.latest_known.clone(),
             _ => self.cache.default.clone(),
         }
+    }
+
+    pub fn last_launched(&self) -> Option<&CacheEntry> {
+        self.cache.entries.get(&self.cache.last_launched)
     }
 
     #[must_use]

@@ -58,7 +58,7 @@ pub async fn install_version(
     cacher: &mut Cacher,
     args: &Args,
     path: &PathBuf,
-    tag: &String,
+    tag: &str,
 ) -> anyhow::Result<()> {
     do_java_check();
 
@@ -68,7 +68,7 @@ pub async fn install_version(
         return Ok(());
     }
 
-    let tag = match tag.as_str() {
+    let tag = match tag {
         "default" => cacher.default_explicit(),
         "latest" => cacher.cache.latest_known.clone(),
         _ => tag.to_string(),

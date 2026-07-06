@@ -44,3 +44,6 @@
 ## 0.7.4
 - `gvm settings` now supports Windows
 - Updates on Windows will now automatically backup and restore preferences, just like on Unix platforms
+
+## 0.8.0
+- Updates will now prompt to download and install the new version
