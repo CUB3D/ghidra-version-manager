@@ -52,3 +52,6 @@
 - Fix cache migration from 0.7.4 -> 0.8.x
 - Better logging for invalid values when `gvm prefs set py3 ..` is executed
 - `gvm extensions install ...` can now install zip-distributed extensions automatically, without manual installation steps
+
+## 0.8.2
+- Bump Cargo.lock to avoid yanked crates
