@@ -3,4 +3,4 @@ slug = "arch-4004"
 repo_user = "CUB3D"
 repo_repo = "ghidra-4004"
 
-kind="DownloadOnly"
+kind="DownloadAndExtract"

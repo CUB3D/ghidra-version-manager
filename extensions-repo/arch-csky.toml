@@ -3,4 +3,4 @@ slug = "arch-csky"
 repo_user = "taligentx"
 repo_repo = "ghidra_csky_ck804"
 
-kind="DownloadOnly"
+kind="DownloadAndExtract"

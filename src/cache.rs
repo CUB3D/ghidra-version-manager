@@ -49,6 +49,36 @@ impl CacheEntry {
 
         Ok(pref_path)
     }
+
+    /// Get the path to the `Extenstions` directory in the Ghidra config directory
+    /// On linux this is in `~/.config/ghidra/<version>/Extensions`
+    /// On macOS this is in `~/Library/ghidra/<version>/Extensions`
+    /// On Windows this is in `%appdata%/Roaming/ghidra/<version>/Extensions`
+    pub fn extensions_path(&self) -> anyhow::Result<PathBuf> {
+        let home = std::env::home_dir().context("Couldn't determine home directory")?;
+
+        let name = self.path.file_name().unwrap();
+
+        let pref_path = if cfg!(target_os = "linux") {
+            home.join("./.config/ghidra/")
+                .join(name)
+                .join("./Extensions")
+        } else if cfg!(target_os = "macos") {
+            home.join("./Library/ghidra/")
+                .join(name)
+                .join("./Extensions")
+        } else if cfg!(target_os = "windows") {
+            home.join("./AppData/Roaming/ghidra")
+                .join(name)
+                .join("./Extensions")
+        } else {
+            return Err(anyhow::anyhow!(
+                "Sorry but we don't know how to find the extensions directory on this platform yet"
+            ));
+        };
+
+        Ok(pref_path)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
@@ -60,6 +90,7 @@ pub struct Prefs {
     pub ui_scale_override: u32,
 
     /// Should a prompt to install a new version be shown
+    #[serde(default)]
     pub prompt_for_update: bool,
 }
 
@@ -113,8 +144,12 @@ impl Cacher {
                 .context("Failed to read cache data")
                 .and_then(|s| toml::from_str(&s).context("Failed to parse cache data"))
                 .unwrap_or_else(|e| {
-                    error!("Failed to load old cache {e}");
-                    Cache::default()
+                    error!("Failed to load old cache: '{e:?}'");
+                    if cfg!(debug_assertions) {
+                        panic!();
+                    } else {
+                        Cache::default()
+                    }
                 })
         };
 

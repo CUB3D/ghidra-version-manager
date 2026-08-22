@@ -3,4 +3,4 @@ slug = "arch-allegrex"
 repo_user = "kotcrab"
 repo_repo = "ghidra-allegrex"
 
-kind="DownloadOnly"
+kind="DownloadAndExtract"

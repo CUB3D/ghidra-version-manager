@@ -3,4 +3,4 @@ slug = "arch-mcore"
 repo_user = "CUB3D"
 repo_repo = "ghidra-mcore"
 
-kind="DownloadOnly"
+kind="DownloadAndExtract"

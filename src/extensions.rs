@@ -9,18 +9,21 @@ use futures_util::StreamExt;
 use include_directory::{Dir, include_directory};
 use reqwest::{Client, Url};
 use serde::{Deserialize, Serialize};
+use std::fs::OpenOptions;
 use std::io::Read;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tar::{Archive, EntryType};
 use tokio::io::AsyncWriteExt;
 use tracing::{debug, error, info};
+use zip::ZipArchive;
+use zip::read::root_dir_common_filter;
 
 static EXTENSIONS: Dir = include_directory!("./extensions-repo");
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ExtKind {
-    /// Only download latest releases
-    DownloadOnly,
+    /// Download and extract
+    DownloadAndExtract,
 
     /// A processor module that should be cloned directly
     ProcessorGit,
@@ -158,7 +161,7 @@ pub(crate) async fn handle_ext_cmd(
             }
 
             match entry.kind {
-                ExtKind::DownloadOnly => {
+                ExtKind::DownloadAndExtract => {
                     info!("Installing download only extension");
                     let octocrab = octocrab::instance();
 
@@ -199,17 +202,36 @@ pub(crate) async fn handle_ext_cmd(
                     }
                     pb.finish();
 
-                    info!(
-                        "This extension requires manual installation, please install using File->Install Extensions and select:"
-                    );
-                    info!("{}", dl_path.as_path().display());
+                    // Extract the extension zip
+                    let extract_zip_file = OpenOptions::new()
+                        .read(true)
+                        .open(&dl_path)
+                        .context("Failed to open the extension zip we just downloaded")?;
+
+                    let extension_path = ghidra_ent
+                        .extensions_path()
+                        .context("Failed to get extensions directory")?;
+
+                    let mut z = ZipArchive::new(extract_zip_file)?;
+                    // Find the name of the root directory that will be created when we extract
+                    let root = z
+                        .root_dir(root_dir_common_filter)
+                        .context("Failed to get root directory of extension zip")?
+                        .context("No root directory in extension zip, this isn't allowed")?
+                        .file_name()
+                        .context("Failed to get file name")?
+                        .to_string_lossy()
+                        .to_string();
+                    let root_path = extension_path.join(PathBuf::from(root));
+
+                    z.extract(extension_path)?;
 
                     cacher.with_cache(|c| {
                         let ent = c.entries.get_mut(&ghidra_version).unwrap();
                         ent.extensions.insert(
                             entry.slug,
                             ExtEntry {
-                                files: vec![dl_path],
+                                files: vec![dl_path, root_path],
                             },
                         );
                     })?;

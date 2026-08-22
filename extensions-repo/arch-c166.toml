@@ -3,4 +3,4 @@ slug = "arch-c166"
 repo_user = "keyhana"
 repo_repo = "c166-ghidra-module"
 
-kind="DownloadOnly"
+kind="DownloadAndExtract"

@@ -3,4 +3,4 @@ slug = "loader-dtb"
 repo_user = "antoniovazquezblanco"
 repo_repo = "GhidraDeviceTreeBlob"
 
-kind="DownloadOnly"
+kind="DownloadAndExtract"

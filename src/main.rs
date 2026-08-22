@@ -269,6 +269,9 @@ async fn main() -> anyhow::Result<()> {
             }
             PrefsSubCmd::Set { key, value } => match key.as_str() {
                 "py3" => {
+                    if !["true", "false"].contains(&value.as_str()) {
+                        error!("Supported values: true | false");
+                    }
                     cacher.with_cache(|c: &mut cache::Cache| {
                         c.prefs.pyghidra = *value == "true";
                     })?;

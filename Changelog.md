@@ -47,3 +47,8 @@
 
 ## 0.8.0
 - Updates will now prompt to download and install the new version
+
+## 0.8.1
+- Fix cache migration from 0.7.4 -> 0.8.x
+- Better logging for invalid values when `gvm prefs set py3 ..` is executed
+- `gvm extensions install ...` can now install zip-distributed extensions automatically, without manual installation steps
