@@ -1,0 +1,6 @@
+name = "tms320c24x"
+slug = "arch-tms320c24x"
+repo_user = "banksy-git"
+repo_repo = "ghidra-tms320c24x"
+
+kind="DownloadAndExtract"

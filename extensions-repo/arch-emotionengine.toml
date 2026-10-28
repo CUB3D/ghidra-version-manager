@@ -1,0 +1,6 @@
+name = "Emotionengine"
+slug = "arch-emotionengine"
+repo_user = "chaoticgd"
+repo_repo = "ghidra-emotionengine-reloaded"
+
+kind="DownloadAndExtract"

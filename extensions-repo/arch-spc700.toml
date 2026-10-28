@@ -1,0 +1,6 @@
+name = "SPC700"
+slug = "arch-spc700"
+repo_user = "qwertymodo"
+repo_repo = "SPCdra"
+
+kind="DownloadAndExtract"

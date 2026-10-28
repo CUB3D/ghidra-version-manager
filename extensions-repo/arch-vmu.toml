@@ -1,0 +1,8 @@
+name = "Dreamcast VMU"
+slug = "arch-vmu"
+repo_user = "RossMeikleham"
+repo_repo = "Ghidra-VMU-Processor"
+
+kind="ProcessorGit"
+branch_name="master"
+no_prefix=true

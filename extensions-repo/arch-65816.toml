@@ -1,0 +1,8 @@
+name = "WDC 65816"
+slug = "arch-65816"
+repo_user = "kaayzouee"
+repo_repo = "ghidra-65816"
+
+kind="ProcessorGit"
+branch_name="master"
+no_prefix=true

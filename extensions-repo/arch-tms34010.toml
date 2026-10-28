@@ -1,0 +1,8 @@
+name = "TMS34010"
+slug = "arch-tms34010"
+repo_user = "ZPaul2Fresh8"
+repo_repo = "Ghidra_TMS34010"
+
+kind="ProcessorGit"
+branch_name="master"
+no_prefix=true

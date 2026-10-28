@@ -1,0 +1,8 @@
+name = "SunPlus unSP"
+slug = "arch-sunplusunsp"
+repo_user = "SamuelWAnderson45"
+repo_repo = "ghidra-unSP"
+
+kind="ProcessorGit"
+branch_name="master"
+no_prefix=true

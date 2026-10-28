@@ -1,0 +1,8 @@
+name = "DEC VAX"
+slug = "arch-vax"
+repo_user = "kkaempf"
+repo_repo = "ghidra-vax"
+
+kind="ProcessorGit"
+branch_name="master"
+no_prefix=true

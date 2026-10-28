@@ -1,0 +1,8 @@
+name = "Toshiba TLCS-900/H"
+slug = "arch-tlcs900h"
+repo_user = "nevesnunes"
+repo_repo = "ghidra-tlcs900h"
+
+kind="ProcessorGit"
+branch_name="master"
+no_prefix=true

@@ -1,0 +1,8 @@
+name = "Micronova"
+slug = "arch-micronova"
+repo_user = "pkooiman"
+repo_repo = "micronova_ghidra"
+
+kind="ProcessorGit"
+branch_name="master"
+no_prefix=true

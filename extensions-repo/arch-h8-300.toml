@@ -1,0 +1,9 @@
+name = "Hitachi H8/300"
+slug = "arch-hitachih8300"
+repo_user = "shiz"
+repo_repo = "ghidra-h8-300"
+
+kind="ProcessorGit"
+branch_name="main"
+platform="Codeberg"
+no_prefix=true

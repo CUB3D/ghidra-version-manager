@@ -13,7 +13,7 @@ cargo install ghidra-version-manager
 cargo install --git https://github.com/CUB3D/ghidra-version-manager
 ```
 
-This will download and extract the selected version. On linux it will create a `.desktop` entry as well.
+This will download and extract the selected version. On Linux it will create a `.desktop` entry as well.
 On macOS it will create a launcher app in `/Applications` for spotlight integration.
 
 # Usage
@@ -62,6 +62,10 @@ gvm uninstall Ghidra_11.4_build
 ```shell
 gvm list
 ```
+
+## LLM policy
+Please ensure all contributions to this project are conducted with respect to our [LLM policy](https://nlnetlabs.nl/llm-policy/).
+Also note that we consider the inclusion of an extension in the library shipped with this tool as an endorsement of quality. In order to ensure this, we expect the presence of human judgement in their development. i.e. we will not accept plugins that are significantly or exclusively produced by an LLM.
 
 # License
 GPL3

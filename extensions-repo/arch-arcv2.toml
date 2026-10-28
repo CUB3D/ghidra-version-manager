@@ -1,0 +1,8 @@
+name = "ARC v2"
+slug = "arch-arcv2"
+repo_user = "sony"
+repo_repo = "ARCv2_Ghidra"
+
+kind="ProcessorGit"
+branch_name="master"
+no_prefix=true

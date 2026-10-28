@@ -1,0 +1,8 @@
+name = "ns32016"
+slug = "arch-ns32016"
+repo_user = "raybellis"
+repo_repo = "ghidra-NS32016"
+
+kind="ProcessorGit"
+branch_name="master"
+no_prefix=true

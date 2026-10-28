@@ -1,0 +1,8 @@
+name = "AMD Radeon F32"
+slug = "arch-amdradeonf32"
+repo_user = "cyrozap"
+repo_repo = "ghidra-radeon-f32"
+
+kind="ProcessorGit"
+branch_name="master"
+no_prefix=true

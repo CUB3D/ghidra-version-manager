@@ -1,0 +1,8 @@
+name = "MediaTek MD32"
+slug = "arch-mtkmd32"
+repo_user = "cyrozap"
+repo_repo = "ghidra-md32"
+
+kind="ProcessorGit"
+branch_name="master"
+no_prefix=true

@@ -21,12 +21,19 @@ static EXTENSIONS: Dir = include_directory!("./extensions-repo");
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum ExtKind {
-    /// Download and extract
+    /// Download and extract the latest release from git releases
     DownloadAndExtract,
 
     /// A processor module that should be cloned directly
     ProcessorGit,
 }
+
+#[derive(Serialize, Deserialize, Debug)]
+pub enum Platform {
+    Github,
+    Codeberg,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ExtDef {
     /// The name of the module
@@ -52,6 +59,9 @@ pub struct ExtDef {
 
     /// Which branch to check out for git modules
     pub branch_name: Option<String>,
+
+    /// Override the source platform, none/excluded -> github
+    pub platform: Option<Platform>,
 }
 
 #[derive(Debug, Subcommand)]
@@ -234,12 +244,27 @@ pub(crate) async fn handle_ext_cmd(
                 }
                 ExtKind::ProcessorGit => {
                     info!("Installing git processor extension");
-                    let url = Url::parse(&format!(
-                        "https://api.github.com/repos/{}/{}/tarball/{}",
-                        entry.repo_user,
-                        entry.repo_repo,
-                        entry.branch_name.unwrap_or("master".to_string())
-                    ))?;
+
+                    let platform = entry.platform.unwrap_or(Platform::Github);
+
+                    let url = match platform {
+                        Platform::Github => {
+                            Url::parse(&format!(
+                                "https://api.github.com/repos/{}/{}/tarball/{}",
+                                entry.repo_user,
+                                entry.repo_repo,
+                                entry.branch_name.unwrap_or("master".to_string())
+                            ))?
+                        }
+                        Platform::Codeberg => {
+                            Url::parse(&format!(
+                                "https://codeberg.org/{}/{}/archive/{}.tar.gz",
+                                entry.repo_user,
+                                entry.repo_repo,
+                                entry.branch_name.unwrap_or("master".to_string())
+                            ))?
+                        }
+                    };
 
                     let file_name = format!("{}.tar.gz", entry.slug);
                     let dl_path = path.join(&file_name);

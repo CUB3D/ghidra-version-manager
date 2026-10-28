@@ -1,0 +1,6 @@
+name = "NMOS II"
+slug = "arch-nmosii"
+repo_user = "kkaempf"
+repo_repo = "ghidra-nmos-ii"
+
+kind="DownloadAndExtract"

@@ -1,0 +1,6 @@
+name = "Fujitsu FR60"
+slug = "arch-fr60"
+repo_user = "desrdev"
+repo_repo = "ghidra-fr60"
+
+kind="DownloadAndExtract"

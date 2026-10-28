@@ -1,0 +1,6 @@
+name = "Nintendo64 RSP"
+slug = "arch-rsp"
+repo_user = "Random06457"
+repo_repo = "Ghidra-RSP"
+
+kind="DownloadAndExtract"

@@ -1,0 +1,6 @@
+name = "Broadcomm D11"
+slug = "arch-d11brcm"
+repo_user = "CUB3D"
+repo_repo = "ghidra-d11"
+
+kind="DownloadAndExtract"

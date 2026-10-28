@@ -1,0 +1,6 @@
+name = "a29k"
+slug = "arch-a29k"
+repo_user = "mumbel"
+repo_repo = "ghidra_a29k"
+
+kind="DownloadAndExtract"

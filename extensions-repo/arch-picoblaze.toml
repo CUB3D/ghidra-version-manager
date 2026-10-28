@@ -3,4 +3,4 @@ slug = "arch-picoblaze"
 repo_user = "CUB3D"
 repo_repo = "ghidra-picoblaze"
 
-kind="ProcessorGit"
+kind="DownloadAndExtract"

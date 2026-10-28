@@ -1,0 +1,8 @@
+name = "SPU"
+slug = "arch-spu"
+repo_user = "aerosoul94"
+repo_repo = "GhidraSPU"
+
+kind="ProcessorGit"
+branch_name="master"
+no_prefix=true

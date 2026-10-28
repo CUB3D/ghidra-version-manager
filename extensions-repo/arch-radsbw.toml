@@ -1,0 +1,8 @@
+name = "Play TV Snowboarder Radica"
+slug = "arch-radsbw"
+repo_user = "widberg"
+repo_repo = "rad_sbw"
+
+kind="ProcessorGit"
+branch_name="master"
+no_prefix=true

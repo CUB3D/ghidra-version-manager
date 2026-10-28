@@ -1,0 +1,6 @@
+name = "q32s"
+slug = "arch-q32s"
+repo_user = "CUB3D"
+repo_repo = "ghidra-q32s"
+
+kind="DownloadAndExtract"

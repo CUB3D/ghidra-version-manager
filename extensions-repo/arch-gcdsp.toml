@@ -1,0 +1,8 @@
+name = "GameCube/Wii DSP"
+slug = "arch-gcdsp"
+repo_user = "Pokechu22"
+repo_repo = "ghidra-gcdsp-lang"
+
+kind="ProcessorGit"
+branch_name="master"
+no_prefix=true

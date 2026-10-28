@@ -1,0 +1,6 @@
+name = "XAP"
+slug = "arch-xap"
+repo_user = "CUB3D"
+repo_repo = "ghidra-xap"
+
+kind="DownloadAndExtract"

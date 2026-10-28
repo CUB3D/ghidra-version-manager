@@ -1,0 +1,6 @@
+name = "PlayStation Vita"
+slug = "arch-psvita"
+repo_user = "CreepNT"
+repo_repo = "VitaLoaderRedux"
+
+kind="DownloadAndExtract"

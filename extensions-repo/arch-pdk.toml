@@ -3,4 +3,4 @@ slug = "arch-pdk"
 repo_user = "CUB3D"
 repo_repo = "ghidra-pdk"
 
-kind="ProcessorGit"
+kind="DownloadAndExtract"

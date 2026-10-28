@@ -1,0 +1,8 @@
+name = "LM32"
+slug = "arch-lm32"
+repo_user = "jevinskie"
+repo_repo = "ghidra-lm32"
+
+kind="ProcessorGit"
+branch_name="master"
+no_prefix=true

@@ -13,10 +13,8 @@ use std::{fs::File, process::Command};
 use tracing::{debug, error, info};
 use trauma::download::{Download, Status};
 use trauma::downloader::Downloader;
-use crate::cache::GhidraVersion;
 
 pub fn do_java_check() {
-    //TODO: check java version compat
     let res = Command::new("javac").arg("--version").output();
     if let Ok(res) = res
         && res.status.success()

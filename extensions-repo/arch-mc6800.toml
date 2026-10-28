@@ -1,0 +1,6 @@
+name = "Motorola mc6800"
+slug = "arch-mc6800"
+repo_user = "sigurasg"
+repo_repo = "GhidraMC6800"
+
+kind="DownloadAndExtract"

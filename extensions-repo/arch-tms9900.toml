@@ -1,0 +1,8 @@
+name = "TMS9900"
+slug = "arch-tms9900"
+repo_user = "gnulnulf"
+repo_repo = "Ghidra-TMS9900"
+
+kind="ProcessorGit"
+branch_name="master"
+no_prefix=true
