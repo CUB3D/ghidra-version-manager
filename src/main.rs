@@ -7,7 +7,7 @@ use crate::args::cmd::Cmd;
 use crate::args::default_subcommand::DefaultSubCmd;
 use crate::args::prefs_subcommand::PrefsSubCmd;
 use crate::args::settings_subcommand::SettingsSubcommand;
-use crate::cache::Cacher;
+use crate::cache::{Cacher, KnownGhidraVersion};
 use crate::prefs_backup::backup_generator::BackupGenerator;
 use crate::prefs_backup::backup_restorer::BackupRestorer;
 use crate::update_checker::UpdateCheckResults;
@@ -86,6 +86,42 @@ pub async fn update_with_prefs_backup(
     Ok(())
 }
 
+pub async fn update_known_versions(cacher: &mut Cacher) -> anyhow::Result<()> {
+    let octocrab = octocrab::instance();
+
+    // Returns the first page of all issues.
+    let page = octocrab
+        .repos("NationalSecurityAgency", "ghidra")
+        .releases()
+        .list()
+        .per_page(100)
+        .send()
+        .await?;
+
+    let results = octocrab.all_pages(page).await?;
+
+    let mut new_versions = Vec::new();
+    for r in results {
+        if let (Some(name), Some(created_at), Some(asset)) =
+            (&r.name, r.created_at, r.assets.first())
+        {
+            new_versions.push(KnownGhidraVersion {
+                name: name.clone(),
+                created_at,
+                tag_name: r.tag_name.clone(),
+                url: asset.url.to_string(),
+            });
+        }
+    }
+
+    cacher.with_cache(|c| {
+        c.known_ghidra_versions.clear();
+        c.known_ghidra_versions.extend_from_slice(&new_versions);
+    })?;
+
+    Ok(())
+}
+
 pub fn get_gvm_config_dir() -> anyhow::Result<PathBuf> {
     let home = std::env::home_dir().context("Couldn't determine home directory")?;
     Ok(if cfg!(target_family = "unix") {
@@ -122,6 +158,7 @@ async fn main() -> anyhow::Result<()> {
             > 18
         || cacher.cache.latest_known.is_empty()
     {
+        update_known_versions(&mut cacher).await?;
         update_results = update_checker::do_update_check(&mut cacher, &args).await?;
     }
 
@@ -366,8 +403,15 @@ async fn main() -> anyhow::Result<()> {
                 c.last_launched = tag.clone();
             })?;
 
-            let path = &cacher.cache.entries.get(&tag).as_ref().unwrap().path;
-            let runner = if cacher.cache.prefs.pyghidra {
+            let entry = cacher.cache.entries.get(&tag).unwrap();
+            let path = &entry.path;
+            if cacher.cache.prefs.pyghidra && !entry.get_version().supports_pyghidra() {
+                info!(
+                    "Your default prefs are to start with pyGhidra, but this version is too old. Falling back to Jython"
+                );
+            }
+
+            let runner = if cacher.cache.prefs.pyghidra && entry.get_version().supports_pyghidra() {
                 if cfg!(target_family = "unix") {
                     path.join("support/pyghidraRun")
                 } else {
@@ -378,6 +422,8 @@ async fn main() -> anyhow::Result<()> {
             } else {
                 path.join("ghidraRun.bat")
             };
+
+            println!("runner = {}", runner.display());
 
             if !runner.exists() {
                 cacher.with_cache(|c| {
@@ -402,34 +448,19 @@ async fn main() -> anyhow::Result<()> {
             install::install_version(&mut cacher, &args, &path, tag).await?;
         }
         Cmd::List => {
-            let octocrab = octocrab::instance();
-
-            // Returns the first page of all issues.
-            let page = octocrab
-                .repos("NationalSecurityAgency", "ghidra")
-                .releases()
-                .list()
-                .per_page(100)
-                .send()
-                .await?;
-
-            let results = octocrab.all_pages(page).await?;
+            match update_known_versions(&mut cacher).await {
+                Ok(()) => {}
+                Err(_) => {
+                    warn!("Updating cached version list failed, this info might be stale!");
+                }
+            }
 
             info!("Available releases:");
-            for c in &results {
+            for c in &cacher.cache.known_ghidra_versions {
                 if args.verbose {
-                    // println!("{:#?}", c);
-                    if let Some(name) = &c.name {
-                        info!("name: {name}");
-                    }
-                    if let Some(created_at) = c.created_at {
-                        info!("date: {created_at}");
-                    }
-
-                    let asset = c.assets.first();
-                    if let Some(asset) = asset {
-                        info!("URL: {}", asset.url);
-                    }
+                    info!("name: {}", c.name);
+                    info!("date: {}", c.created_at);
+                    info!("URL: {}", c.url);
                     info!("--------");
                 } else {
                     let mut out = format!("- {}", c.tag_name);

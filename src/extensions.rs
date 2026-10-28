@@ -4,17 +4,16 @@ use anyhow::Context;
 use anyhow::anyhow;
 use clap::Subcommand;
 use flate2::bufread::GzDecoder;
-use futures_util::Stream;
-use futures_util::StreamExt;
 use include_directory::{Dir, include_directory};
-use reqwest::{Client, Url};
+use reqwest::Url;
 use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use tar::{Archive, EntryType};
-use tokio::io::AsyncWriteExt;
 use tracing::{debug, error, info};
+use trauma::download::{Download, Status};
+use trauma::downloader::Downloader;
 use zip::ZipArchive;
 use zip::read::root_dir_common_filter;
 
@@ -115,7 +114,7 @@ pub(crate) async fn handle_ext_cmd(
                 }
             };
 
-            let extention_entry = match ghidra_entry.extensions.get(&ext_def.slug) {
+            let extension_entry = match ghidra_entry.extensions.get(&ext_def.slug) {
                 None => {
                     error!(
                         "The version {ghidra_version} doesn't have the extension {} installed",
@@ -129,7 +128,7 @@ pub(crate) async fn handle_ext_cmd(
             ghidra_entry.extensions.remove(&ext_def.slug);
             cacher.save()?;
 
-            for f in &extention_entry.files {
+            for f in &extension_entry.files {
                 if std::fs::exists(f).unwrap_or(false) {
                     if std::fs::metadata(f)?.is_file() {
                         info!("rm {}", f.display());
@@ -179,28 +178,25 @@ pub(crate) async fn handle_ext_cmd(
 
                     info!("Downloading: {} -> {}", &url, asset.name);
 
-                    let c = Client::new();
-                    let mut stream = c.get(url).send().await?.bytes_stream();
-
                     let dl_path = path.join(asset.name.as_str());
-                    debug!("DL path: {:?}", dl_path);
 
-                    info!("Saving to: {}", dl_path.as_path().display());
+                    let downloader = Downloader::builder().directory(path).build();
+                    let res = downloader
+                        .download(&[Download::builder()
+                            .url(url)?
+                            .filename_override(&asset.name)
+                            .build()])
+                        .await;
 
-                    let mut dl_file = tokio::fs::OpenOptions::default()
-                        .write(true)
-                        .truncate(true)
-                        .create(true)
-                        .open(&dl_path)
-                        .await?;
-
-                    let pb = indicatif::ProgressBar::new(asset.size as _);
-                    while let Some(item) = stream.next().await {
-                        let item = &item?;
-                        dl_file.write_all(item).await?;
-                        pb.inc(item.len() as _);
+                    let status = res.first().unwrap().status();
+                    match status {
+                        // Download done
+                        Status::Success => {}
+                        // Cached
+                        Status::Skipped(_) => {}
+                        Status::Fail(s) => return Err(anyhow!("Download failed: {:?}", s)),
+                        _ => return Err(anyhow!("Download failed: {:?}", status)),
                     }
-                    pb.finish();
 
                     // Extract the extension zip
                     let extract_zip_file = OpenOptions::new()
@@ -212,7 +208,7 @@ pub(crate) async fn handle_ext_cmd(
                         .extensions_path()
                         .context("Failed to get extensions directory")?;
 
-                    let mut z = ZipArchive::new(extract_zip_file)?;
+                    let mut z = ZipArchive::new(extract_zip_file).context("Failed to open zip")?;
                     // Find the name of the root directory that will be created when we extract
                     let root = z
                         .root_dir(root_dir_common_filter)
@@ -224,7 +220,7 @@ pub(crate) async fn handle_ext_cmd(
                         .to_string();
                     let root_path = extension_path.join(PathBuf::from(root));
 
-                    z.extract(extension_path)?;
+                    z.extract(extension_path).context("Failed to extract zip")?;
 
                     cacher.with_cache(|c| {
                         let ent = c.entries.get_mut(&ghidra_version).unwrap();
@@ -245,33 +241,29 @@ pub(crate) async fn handle_ext_cmd(
                         entry.branch_name.unwrap_or("master".to_string())
                     ))?;
 
-                    let dl_path = path.join(format!("{}.tar.gz", entry.slug));
+                    let file_name = format!("{}.tar.gz", entry.slug);
+                    let dl_path = path.join(&file_name);
                     debug!("DL path: {:?}", dl_path);
 
                     info!("Saving to: {}", dl_path.as_path().display());
 
-                    let c = Client::default();
-                    let mut stream = c
-                        .get(url)
-                        .header("User-Agent", "octocrab")
-                        .send()
-                        .await?
-                        .bytes_stream();
+                    let downloader = Downloader::builder().directory(path).build();
+                    let res = downloader
+                        .download(&[Download::builder()
+                            .url(url)?
+                            .filename_override(&file_name)
+                            .build()])
+                        .await;
 
-                    let mut dl_file = tokio::fs::OpenOptions::default()
-                        .write(true)
-                        .truncate(true)
-                        .create(true)
-                        .open(&dl_path)
-                        .await?;
-
-                    let pb = indicatif::ProgressBar::new(stream.size_hint().0 as u64);
-                    while let Some(item) = stream.next().await {
-                        let item = &item?;
-                        dl_file.write_all(item).await?;
-                        pb.inc(item.len() as _);
+                    let status = res.first().unwrap().status();
+                    match status {
+                        // Download done
+                        Status::Success => {}
+                        // Cached
+                        Status::Skipped(_) => {}
+                        Status::Fail(s) => return Err(anyhow!("Download failed: {:?}", s)),
+                        _ => return Err(anyhow!("Download failed: {:?}", status)),
                     }
-                    pb.finish();
 
                     info!("Download done");
 

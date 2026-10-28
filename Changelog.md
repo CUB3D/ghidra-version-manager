@@ -55,3 +55,8 @@
 
 ## 0.8.2
 - Bump Cargo.lock to avoid yanked crates
+
+## 0.9.0
+- Fixed install failure for Ghidra 9.x
+- Downloads are more reliable on slower connections
+- Fixed launching Ghidra versions before 11.3 when pyGhidra is configured as the default python implementation

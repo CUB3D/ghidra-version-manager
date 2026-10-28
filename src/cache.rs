@@ -12,6 +12,20 @@ pub struct ExtEntry {
     pub files: Vec<PathBuf>,
 }
 
+#[derive(Serialize, Deserialize, Default, Debug, Copy, Clone)]
+pub struct GhidraVersion {
+    major: u32,
+    minor: u32,
+    patch: u32,
+}
+
+impl GhidraVersion {
+    pub fn supports_pyghidra(&self) -> bool {
+        // added in 11.3
+        (self.major > 11) || (self.major == 11 && self.minor >= 3)
+    }
+}
+
 #[derive(Serialize, Deserialize, Default, Debug)]
 pub struct CacheEntry {
     pub path: PathBuf,
@@ -21,7 +35,7 @@ pub struct CacheEntry {
 
 impl CacheEntry {
     /// Get the path to the `preferences` file in the Ghidra config directory
-    /// On linux this is in `~/.config/ghidra/<version>/preferences`
+    /// On Linux this is in `~/.config/ghidra/<version>/preferences`
     /// On macOS this is in `~/Library/ghidra/<version>/preferences`
     /// On Windows this is in `%appdata%/Roaming/ghidra/<version>/preferences`
     pub fn preferences_path(&self) -> anyhow::Result<PathBuf> {
@@ -51,7 +65,7 @@ impl CacheEntry {
     }
 
     /// Get the path to the `Extenstions` directory in the Ghidra config directory
-    /// On linux this is in `~/.config/ghidra/<version>/Extensions`
+    /// On Linux this is in `~/.config/ghidra/<version>/Extensions`
     /// On macOS this is in `~/Library/ghidra/<version>/Extensions`
     /// On Windows this is in `%appdata%/Roaming/ghidra/<version>/Extensions`
     pub fn extensions_path(&self) -> anyhow::Result<PathBuf> {
@@ -79,6 +93,21 @@ impl CacheEntry {
 
         Ok(pref_path)
     }
+
+    pub fn get_version(&self) -> GhidraVersion {
+        let version = self.path.file_name().unwrap().to_str().unwrap();
+        let version = version.split("_").nth(1).unwrap();
+        let mut parts = version.split('.');
+        let major = parts.next().unwrap().parse::<u32>().unwrap();
+        let minor = parts.next().unwrap().parse::<u32>().unwrap();
+        let patch = parts.next().unwrap().parse::<u32>().unwrap();
+
+        GhidraVersion {
+            major,
+            minor,
+            patch,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
@@ -104,6 +133,14 @@ impl Default for Prefs {
     }
 }
 
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
+pub struct KnownGhidraVersion {
+    pub name: String,
+    pub created_at: DateTime<Utc>,
+    pub url: String,
+    pub tag_name: String,
+}
+
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Cache {
     pub entries: HashMap<String, CacheEntry>,
@@ -114,6 +151,8 @@ pub struct Cache {
     pub prefs: Prefs,
     #[serde(default)]
     pub last_launched: String,
+    #[serde(default)]
+    pub known_ghidra_versions: Vec<KnownGhidraVersion>,
 }
 
 impl Default for Cache {
@@ -125,6 +164,7 @@ impl Default for Cache {
             last_update_check: Utc::now(),
             prefs: Prefs::default(),
             last_launched: String::new(),
+            known_ghidra_versions: Vec::new(),
         }
     }
 }

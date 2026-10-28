@@ -5,15 +5,14 @@ use crate::{
 };
 use anyhow::Context;
 use anyhow::anyhow;
-use futures_util::StreamExt;
 use ico::IconDir;
-use reqwest::Client;
+use std::collections::HashMap;
 use std::fmt::Write;
-use std::{collections::HashMap, time::Duration};
 use std::{env::home_dir, path::PathBuf};
 use std::{fs::File, process::Command};
-use tokio::io::AsyncWriteExt;
 use tracing::{debug, error, info};
+use trauma::download::{Download, Status};
+use trauma::downloader::Downloader;
 
 pub fn do_java_check() {
     //TODO: check java version compat
@@ -91,37 +90,31 @@ pub async fn install_version(
 
     info!("⬇️ Downloading: {}", &url);
 
-    let c = Client::builder()
-        .gzip(true)
-        .deflate(true)
-        .zstd(true)
-        .brotli(true)
-        .timeout(Duration::from_secs(300))
-        .build()?;
-
-    let mut stream = c.get(url).send().await?.bytes_stream();
-
-    let dl_path = path.join(format!("ghidra_{}.zip", release.tag_name));
+    let file_name = format!("ghidra_{}.zip", release.tag_name);
+    let dl_path = path.join(&file_name);
 
     info!("💾 Saving to {}", dl_path.as_path().display());
 
-    if dl_path.exists() && cfg!(debug_assertions) {
+    if args.offline && dl_path.exists() {
         info!("Using cached download");
     } else if !args.offline {
-        let mut dl_file = tokio::fs::OpenOptions::default()
-            .write(true)
-            .truncate(true)
-            .create(true)
-            .open(&dl_path)
-            .await?;
+        let downloader = Downloader::builder().directory(path).build();
+        let res = downloader
+            .download(&[Download::builder()
+                .url(url)?
+                .filename_override(&file_name)
+                .build()])
+            .await;
 
-        let pb = indicatif::ProgressBar::new(asset.size as _);
-        while let Some(item) = stream.next().await {
-            let item = item?;
-            dl_file.write_all(&item).await?;
-            pb.inc(item.len() as _);
+        let status = res.first().unwrap().status();
+        match status {
+            // Download done
+            Status::Success => {}
+            // Cached
+            Status::Skipped(_) => {}
+            Status::Fail(s) => return Err(anyhow!("Download failed: {:?}", s)),
+            _ => return Err(anyhow!("Download failed: {:?}", status)),
         }
-        pb.finish();
     } else {
         error!("Offline and no cached version found");
         return Ok(());
@@ -169,7 +162,7 @@ pub async fn install_version(
         .to_string_lossy()
         .to_string();
 
-    // Create desktop entries on linux
+    // Create desktop entries on Linux
     let desktop = if cfg!(target_os = "linux") {
         let app_dir = home_dir().unwrap().join(".local/share/applications/");
         let _ = std::fs::create_dir_all(&app_dir);
@@ -241,23 +234,24 @@ pub async fn install_version(
         None
     };
 
-    info!("📜 Regnerating config");
+    info!("📜 Regenerating config");
     let props_path = dir_path.join("support/launch.properties");
     // Backup old props file
     let props_backup_path = dir_path.join("support/launch.properties.backup");
     std::fs::copy(&props_path, &props_backup_path)?;
 
-    //TODO: regnerate this when props change
+    //TODO: regenerate this when props change
+
     let mut props = GhidraPropsFile::from_path(&props_backup_path)?;
-    let mut vmargs = props
-        .get_by_key("VMARGS_LINUX")
-        .context("Cant find VMARGS_LINUX prop")?;
-    vmargs.retain(|f| !f.starts_with("-Dsun.java2d.uiScale="));
-    vmargs.push(format!(
-        "-Dsun.java2d.uiScale={}",
-        cacher.cache.prefs.ui_scale_override
-    ));
-    props.put("VMARGS_LINUX", vmargs);
+    // This can fail on Ghidra 9.x
+    if let Some(mut vmargs) = props.get_by_key("VMARGS_LINUX") {
+        vmargs.retain(|f| !f.starts_with("-Dsun.java2d.uiScale="));
+        vmargs.push(format!(
+            "-Dsun.java2d.uiScale={}",
+            cacher.cache.prefs.ui_scale_override
+        ));
+        props.put("VMARGS_LINUX", vmargs);
+    }
 
     props.save_to_file(&props_path)?;
 
