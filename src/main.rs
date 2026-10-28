@@ -2,6 +2,7 @@
 
 mod extensions;
 
+use std::io::Write;
 use crate::args::arguments::Args;
 use crate::args::cmd::Cmd;
 use crate::args::default_subcommand::DefaultSubCmd;
@@ -16,7 +17,7 @@ use anyhow::Context;
 use chrono::Utc;
 use clap::Parser;
 use std::path::PathBuf;
-use std::process::Command;
+use std::process::{Command, Stdio};
 use tracing::level_filters::LevelFilter;
 use tracing::{error, info, warn};
 use tracing_subscriber::EnvFilter;
@@ -458,16 +459,14 @@ async fn main() -> anyhow::Result<()> {
                 return Ok(());
             }
             info!("Launching {}", runner.display());
-            #[cfg(target_family = "unix")]
-            {
-                use std::os::unix::process::CommandExt;
-                return Err(anyhow::anyhow!(Command::new(&runner).exec()));
-            }
 
-            #[cfg(not(target_family = "unix"))]
-            {
-                Command::new(&runner).spawn()?;
-            }
+            let child = Command::new(&runner)
+                .stdin(Stdio::piped())
+                // So we don't spam the terminal
+                .stdout(Stdio::null())
+                .spawn()?;
+            // If this is the first launch of a pyghidra instance, we need to make it create the venv
+            child.stdin.unwrap().write_all(b"y\ny\n")?;
         }
         Cmd::Install { tag } => {
             install::install_version(&mut cacher, &args, &path, tag).await?;

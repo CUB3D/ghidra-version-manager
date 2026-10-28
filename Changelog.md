@@ -63,3 +63,5 @@
 - New pref "keep-zips" to retain downloaded Ghidra installer zips
 - On macOS, natives will be built by default so the decompiler works out of the box
 - Added a warning to highlight if you try to launch a Ghidra version that needs a newer version of java than you have installed
+- Extension repo updated
+- When starting with pyGhidra for the first time, respond to the venv creation prompts to prevent a hang
