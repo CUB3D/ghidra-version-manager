@@ -16,13 +16,44 @@ pub struct ExtEntry {
 pub struct GhidraVersion {
     major: u32,
     minor: u32,
-    patch: u32,
+    patch: Option<u32>,
 }
 
 impl GhidraVersion {
+    pub fn from_release_name(version: &str) -> Self {
+        let version = version.split("_").nth(1).unwrap();
+        let mut parts = version.split('.');
+        let major = parts.next().unwrap().parse::<u32>().unwrap();
+        let minor = parts.next().unwrap().parse::<u32>().unwrap();
+        let patch = parts.next().map(|s| s.parse::<u32>().unwrap());
+
+        GhidraVersion {
+            major,
+            minor,
+            patch,
+        }
+    }
+
     pub fn supports_pyghidra(&self) -> bool {
         // added in 11.3
         (self.major > 11) || (self.major == 11 && self.minor >= 3)
+    }
+
+    pub fn needs_macos_natives_build(&self) -> bool {
+        // 12.0 and above
+        self.major >= 12
+    }
+
+    pub fn min_java_version(&self) -> Option<u32> {
+        // 12.2 + needs java 25
+        if (self.major > 12) || (self.major == 12 && self.minor >= 2) {
+            Some(25)
+        // 12.0 - 12.1.4 needs java 21
+        } else if self.major >= 12 {
+            Some(21)
+        } else {
+            None
+        }
     }
 }
 
@@ -96,17 +127,7 @@ impl CacheEntry {
 
     pub fn get_version(&self) -> GhidraVersion {
         let version = self.path.file_name().unwrap().to_str().unwrap();
-        let version = version.split("_").nth(1).unwrap();
-        let mut parts = version.split('.');
-        let major = parts.next().unwrap().parse::<u32>().unwrap();
-        let minor = parts.next().unwrap().parse::<u32>().unwrap();
-        let patch = parts.next().unwrap().parse::<u32>().unwrap();
-
-        GhidraVersion {
-            major,
-            minor,
-            patch,
-        }
+        GhidraVersion::from_release_name(version)
     }
 }
 
@@ -121,6 +142,10 @@ pub struct Prefs {
     /// Should a prompt to install a new version be shown
     #[serde(default)]
     pub prompt_for_update: bool,
+
+    /// Should we keep the zips after finishing install (~2x space usage)
+    #[serde(default)]
+    pub keep_install_zips: bool,
 }
 
 impl Default for Prefs {
@@ -129,6 +154,7 @@ impl Default for Prefs {
             pyghidra: false,
             ui_scale_override: 1,
             prompt_for_update: true,
+            keep_install_zips: false,
         }
     }
 }

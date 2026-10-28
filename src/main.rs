@@ -294,15 +294,21 @@ async fn main() -> anyhow::Result<()> {
                 } else {
                     "no"
                 };
-                info!("Use PyGhidra in launchers? {{py3}} [{yn}]");
+                info!("Use PyGhidra by default in application launchers? {{py3}} [{yn}]");
                 info!(
-                    "Override ui scale {{scale}} [{}]",
+                    "Override ui scale? {{scale}} [{}]",
                     cacher.cache.prefs.ui_scale_override
                 );
                 info!(
-                    "Prompt to install new versions [{}]",
+                    "Prompt to install new versions? {{update-notify}} [{}]",
                     cacher.cache.prefs.prompt_for_update
                 );
+                let yn = if cacher.cache.prefs.keep_install_zips {
+                    "yes"
+                } else {
+                    "no"
+                };
+                info!("Keep install zips? {{keep-zips}} [{yn}]");
             }
             PrefsSubCmd::Set { key, value } => match key.as_str() {
                 "py3" => {
@@ -322,6 +328,12 @@ async fn main() -> anyhow::Result<()> {
                 "update-notify" => {
                     cacher.with_cache(|c: &mut cache::Cache| {
                         c.prefs.prompt_for_update =
+                            value.parse::<bool>().expect("Failed to parse as bool");
+                    })?;
+                }
+                "keep-zips" => {
+                    cacher.with_cache(|c: &mut cache::Cache| {
+                        c.prefs.keep_install_zips =
                             value.parse::<bool>().expect("Failed to parse as bool");
                     })?;
                 }
@@ -404,6 +416,21 @@ async fn main() -> anyhow::Result<()> {
             })?;
 
             let entry = cacher.cache.entries.get(&tag).unwrap();
+
+            // Check for compatible java version
+            if let Some(java_version) = entry.get_version().min_java_version() {
+                let out = Command::new("java").arg("--version").output()?;
+                let out = String::from_utf8(out.stdout)?;
+                let out = out.split(" ").nth(1).unwrap();
+                let mut parts = out.split(".");
+                let maj = parts.next().unwrap().parse::<u32>()?;
+
+                if java_version < maj {
+                    warn!("This Ghidra version requires java {java_version}, but your default jvm is version {maj}. This might not work!");
+                }
+            }
+
+
             let path = &entry.path;
             if cacher.cache.prefs.pyghidra && !entry.get_version().supports_pyghidra() {
                 info!(
@@ -422,8 +449,6 @@ async fn main() -> anyhow::Result<()> {
             } else {
                 path.join("ghidraRun.bat")
             };
-
-            println!("runner = {}", runner.display());
 
             if !runner.exists() {
                 cacher.with_cache(|c| {

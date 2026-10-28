@@ -13,6 +13,7 @@ use std::{fs::File, process::Command};
 use tracing::{debug, error, info};
 use trauma::download::{Download, Status};
 use trauma::downloader::Downloader;
+use crate::cache::GhidraVersion;
 
 pub fn do_java_check() {
     //TODO: check java version compat
@@ -145,7 +146,7 @@ pub async fn install_version(
     let version = parts[2];
     let dir_name = format!("ghidra_{version}_PUBLIC");
 
-    let mut dir_path = dl_path.parent().unwrap().join(dir_name);
+    let mut dir_path = dl_path.parent().unwrap().join(&dir_name);
     if !dir_path.exists() {
         info!("Failed to find extract, trying old style without suffix");
         let dir_name = format!("ghidra_{version}");
@@ -161,6 +162,21 @@ pub async fn install_version(
         .join("support/ghidra.ico")
         .to_string_lossy()
         .to_string();
+
+    // On macOS ghidra requires manually building now
+    #[cfg(target_os = "macos")]
+    {
+        let version = GhidraVersion::from_release_name(&dir_name);
+        if version.needs_macos_natives_build() {
+            info!("⚙️ Building natives");
+            let gradle_dir = dir_path.join("./support/gradle");
+            let gradle_wrapper_path = dir_path.join("./support/gradle/gradlew");
+            let mut proc = Command::new(gradle_wrapper_path).arg("buildNatives").current_dir(gradle_dir).spawn().context("Failed to spawn gradlew")?;
+            proc.wait().context("Failed to build natives")?;
+        } else {
+            info!("⚙️ Building natives - skipped, not needed on this version");
+        }
+    }
 
     // Create desktop entries on Linux
     let desktop = if cfg!(target_os = "linux") {
@@ -266,7 +282,11 @@ pub async fn install_version(
         );
     })?;
 
-    std::fs::remove_file(&dl_path).context("Failed to delete zip")?;
+    if cacher.cache.prefs.keep_install_zips {
+        info!("Not removing installer zip due to prefs");
+    }else {
+        std::fs::remove_file(&dl_path).context("Failed to delete zip")?;
+    }
 
     Ok(())
 }
