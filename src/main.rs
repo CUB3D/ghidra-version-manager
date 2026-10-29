@@ -2,7 +2,6 @@
 
 mod extensions;
 
-use std::io::Write;
 use crate::args::arguments::Args;
 use crate::args::cmd::Cmd;
 use crate::args::default_subcommand::DefaultSubCmd;
@@ -16,6 +15,7 @@ use crate::update_notification::UpdateDialogAction;
 use anyhow::Context;
 use chrono::Utc;
 use clap::Parser;
+use std::io::Write;
 use std::path::PathBuf;
 use std::process::{Command, Stdio};
 use tracing::level_filters::LevelFilter;
@@ -426,11 +426,12 @@ async fn main() -> anyhow::Result<()> {
                 let mut parts = out.split(".");
                 let maj = parts.next().unwrap().parse::<u32>()?;
 
-                if java_version < maj {
-                    warn!("This Ghidra version requires java {java_version}, but your default jvm is version {maj}. This might not work!");
+                if maj < java_version {
+                    warn!(
+                        "This Ghidra version requires java {java_version}, but your default jvm is version {maj}. This might not work!"
+                    );
                 }
             }
-
 
             let path = &entry.path;
             if cacher.cache.prefs.pyghidra && !entry.get_version().supports_pyghidra() {

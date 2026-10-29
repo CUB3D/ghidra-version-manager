@@ -4,5 +4,5 @@ repo_user = "gnulnulf"
 repo_repo = "Ghidra-TMS9900"
 
 kind="ProcessorGit"
-branch_name="master"
+branch_name="main"
 no_prefix=true

@@ -169,7 +169,11 @@ pub async fn install_version(
             info!("⚙️ Building natives");
             let gradle_dir = dir_path.join("./support/gradle");
             let gradle_wrapper_path = dir_path.join("./support/gradle/gradlew");
-            let mut proc = Command::new(gradle_wrapper_path).arg("buildNatives").current_dir(gradle_dir).spawn().context("Failed to spawn gradlew")?;
+            let mut proc = Command::new(gradle_wrapper_path)
+                .arg("buildNatives")
+                .current_dir(gradle_dir)
+                .spawn()
+                .context("Failed to spawn gradlew")?;
             proc.wait().context("Failed to build natives")?;
         } else {
             info!("⚙️ Building natives - skipped, not needed on this version");
@@ -282,7 +286,7 @@ pub async fn install_version(
 
     if cacher.cache.prefs.keep_install_zips {
         info!("Not removing installer zip due to prefs");
-    }else {
+    } else {
         std::fs::remove_file(&dl_path).context("Failed to delete zip")?;
     }
 

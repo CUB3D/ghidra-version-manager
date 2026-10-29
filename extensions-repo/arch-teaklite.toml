@@ -4,5 +4,5 @@ repo_user = "SachinVin"
 repo_repo = "TeakLite-SLEIGH"
 
 kind="ProcessorGit"
-branch_name="master"
+branch_name="main"
 no_prefix=true

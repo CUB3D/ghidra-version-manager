@@ -4,5 +4,5 @@ repo_user = "ZPaul2Fresh8"
 repo_repo = "Ghidra_TMS34010"
 
 kind="ProcessorGit"
-branch_name="master"
+branch_name="main"
 no_prefix=true

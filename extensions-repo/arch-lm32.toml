@@ -4,5 +4,5 @@ repo_user = "jevinskie"
 repo_repo = "ghidra-lm32"
 
 kind="ProcessorGit"
-branch_name="master"
+branch_name="main"
 no_prefix=true

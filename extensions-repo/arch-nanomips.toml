@@ -4,3 +4,5 @@ repo_user = "nccgroup"
 repo_repo = "ghidra-nanomips"
 
 kind="ProcessorGit"
+branch_name="main"
+no_prefix=true

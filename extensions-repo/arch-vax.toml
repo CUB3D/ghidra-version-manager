@@ -4,5 +4,5 @@ repo_user = "kkaempf"
 repo_repo = "ghidra-vax"
 
 kind="ProcessorGit"
-branch_name="master"
+branch_name="main"
 no_prefix=true

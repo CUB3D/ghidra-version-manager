@@ -6,11 +6,14 @@ use clap::Subcommand;
 use flate2::bufread::GzDecoder;
 use include_directory::{Dir, include_directory};
 use reqwest::Url;
+use reqwest::header::{HeaderMap, HeaderValue};
 use serde::{Deserialize, Serialize};
 use std::fs::OpenOptions;
 use std::io::Read;
 use std::path::{Path, PathBuf};
+use std::time::Duration;
 use tar::{Archive, EntryType};
+use tokio::time;
 use tracing::{debug, error, info};
 use trauma::download::{Download, Status};
 use trauma::downloader::Downloader;
@@ -19,7 +22,7 @@ use zip::read::root_dir_common_filter;
 
 static EXTENSIONS: Dir = include_directory!("./extensions-repo");
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 pub enum ExtKind {
     /// Download and extract the latest release from git releases
     DownloadAndExtract,
@@ -28,13 +31,13 @@ pub enum ExtKind {
     ProcessorGit,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Copy, Clone)]
 pub enum Platform {
     Github,
     Codeberg,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ExtDef {
     /// The name of the module
     pub name: String,
@@ -60,7 +63,7 @@ pub struct ExtDef {
     /// Which branch to check out for git modules
     pub branch_name: Option<String>,
 
-    /// Override the source platform, none/excluded -> github
+    /// Override the source platform, none/excluded -> Github
     pub platform: Option<Platform>,
 }
 
@@ -161,212 +164,22 @@ pub(crate) async fn handle_ext_cmd(
                 return Ok(());
             }
 
-            let entry = find_by_name(name)?;
-
-            let ghidra_ent = cacher.cache.entries.get(&ghidra_version).unwrap();
-            if ghidra_ent.extensions.contains_key(&entry.slug) {
-                error!("That extension is already installed");
-                return Ok(());
-            }
-
-            match entry.kind {
-                ExtKind::DownloadAndExtract => {
-                    info!("Installing download only extension");
-                    let octocrab = octocrab::instance();
-
-                    let rel = octocrab
-                        .repos(entry.repo_user, entry.repo_repo)
-                        .releases()
-                        .get_latest()
-                        .await?;
-
-                    let asset = rel
-                        .assets
-                        .first()
-                        .context("This tag doesn't have an asset attached")?;
-                    let url = asset.browser_download_url.clone();
-
-                    info!("Downloading: {} -> {}", &url, asset.name);
-
-                    let dl_path = path.join(asset.name.as_str());
-
-                    let downloader = Downloader::builder().directory(path).build();
-                    let res = downloader
-                        .download(&[Download::builder()
-                            .url(url)?
-                            .filename_override(&asset.name)
-                            .build()])
-                        .await;
-
-                    let status = res.first().unwrap().status();
-                    match status {
-                        // Download done
-                        Status::Success => {}
-                        // Cached
-                        Status::Skipped(_) => {}
-                        Status::Fail(s) => return Err(anyhow!("Download failed: {:?}", s)),
-                        _ => return Err(anyhow!("Download failed: {:?}", status)),
+            // Special case for all
+            if name == "all" {
+                for e in EXTENSIONS.entries() {
+                    let entry = toml::from_slice::<ExtDef>(e.as_file().unwrap().contents())?;
+                    match install_extension(cacher, &ghidra_version, path, entry.clone()).await {
+                        Ok(_) => {}
+                        Err(e) => {
+                            info!("Installing {} failed: {e:?}", entry.slug)
+                        }
                     }
-
-                    // Extract the extension zip
-                    let extract_zip_file = OpenOptions::new()
-                        .read(true)
-                        .open(&dl_path)
-                        .context("Failed to open the extension zip we just downloaded")?;
-
-                    let extension_path = ghidra_ent
-                        .extensions_path()
-                        .context("Failed to get extensions directory")?;
-
-                    let mut z = ZipArchive::new(extract_zip_file).context("Failed to open zip")?;
-                    // Find the name of the root directory that will be created when we extract
-                    let root = z
-                        .root_dir(root_dir_common_filter)
-                        .context("Failed to get root directory of extension zip")?
-                        .context("No root directory in extension zip, this isn't allowed")?
-                        .file_name()
-                        .context("Failed to get file name")?
-                        .to_string_lossy()
-                        .to_string();
-                    let root_path = extension_path.join(PathBuf::from(root));
-
-                    z.extract(extension_path).context("Failed to extract zip")?;
-
-                    cacher.with_cache(|c| {
-                        let ent = c.entries.get_mut(&ghidra_version).unwrap();
-                        ent.extensions.insert(
-                            entry.slug,
-                            ExtEntry {
-                                files: vec![dl_path, root_path],
-                            },
-                        );
-                    })?;
+                    time::sleep(Duration::from_millis(200)).await;
                 }
-                ExtKind::ProcessorGit => {
-                    info!("Installing git processor extension");
-
-                    let platform = entry.platform.unwrap_or(Platform::Github);
-
-                    let url = match platform {
-                        Platform::Github => {
-                            Url::parse(&format!(
-                                "https://api.github.com/repos/{}/{}/tarball/{}",
-                                entry.repo_user,
-                                entry.repo_repo,
-                                entry.branch_name.unwrap_or("master".to_string())
-                            ))?
-                        }
-                        Platform::Codeberg => {
-                            Url::parse(&format!(
-                                "https://codeberg.org/{}/{}/archive/{}.tar.gz",
-                                entry.repo_user,
-                                entry.repo_repo,
-                                entry.branch_name.unwrap_or("master".to_string())
-                            ))?
-                        }
-                    };
-
-                    let file_name = format!("{}.tar.gz", entry.slug);
-                    let dl_path = path.join(&file_name);
-                    debug!("DL path: {:?}", dl_path);
-
-                    info!("Saving to: {}", dl_path.as_path().display());
-
-                    let downloader = Downloader::builder().directory(path).build();
-                    let res = downloader
-                        .download(&[Download::builder()
-                            .url(url)?
-                            .filename_override(&file_name)
-                            .build()])
-                        .await;
-
-                    let status = res.first().unwrap().status();
-                    match status {
-                        // Download done
-                        Status::Success => {}
-                        // Cached
-                        Status::Skipped(_) => {}
-                        Status::Fail(s) => return Err(anyhow!("Download failed: {:?}", s)),
-                        _ => return Err(anyhow!("Download failed: {:?}", status)),
-                    }
-
-                    info!("Download done");
-
-                    // dec
-                    let bytes = std::fs::read(dl_path)?;
-                    let d = GzDecoder::new(&*bytes);
-
-                    let mut a = Archive::new(d);
-
-                    let cache_ent = match cacher.cache.entries.get(&ghidra_version) {
-                        Some(e) => e,
-                        None => {
-                            error!("Version {ghidra_version} isn't known");
-                            return Err(anyhow!("Failed to fetch version"));
-                        }
-                    };
-
-                    let base = cache_ent.path.clone();
-                    let base = base.join("Ghidra/Processors");
-
-                    // let root = a.entries().it
-
-                    info!("Extracting");
-
-                    let mut tmp = String::new();
-
-                    let mut ext = ExtEntry::default();
-                    ext.files.push(base.join(&entry.name));
-                    info!("files: {:?}", ext.files);
-
-                    for file in a.entries()? {
-                        let mut file = file?;
-                        let out_path = file.header().path()?;
-
-                        if tmp.is_empty() {
-                            if entry.no_prefix.unwrap_or_default() {
-                                if file.header().entry_type() == EntryType::Directory {
-                                    tmp = out_path.to_string_lossy().to_string();
-                                }
-                            } else if out_path.ends_with(format!("{}/", entry.name)) {
-                                tmp = out_path.to_string_lossy().to_string();
-                            }
-
-                            continue;
-                        }
-
-                        // println!("ext {:?}", out_path);
-
-                        if file.header().entry_type() == EntryType::Regular {
-                            let out_path = file.header().path()?;
-                            let out_path = out_path.to_string_lossy().to_string();
-                            if !out_path.starts_with(&tmp) {
-                                continue;
-                            }
-                            let out_path =
-                                out_path.replace(&tmp, &format!("{}/", entry.name.as_str()));
-                            let out_path = base.join(&out_path);
-
-                            let _ = std::fs::create_dir_all(out_path.parent().unwrap());
-
-                            let mut out = Vec::new();
-                            file.read_to_end(&mut out)?;
-                            std::fs::write(&out_path, &out)?;
-
-                            info!("{}", out_path.display());
-
-                            ext.files.push(out_path);
-                        }
-                    }
-
-                    cacher.with_cache(|c| {
-                        let cache_entry = c.entries.get_mut(&ghidra_version).unwrap();
-                        cache_entry.extensions.insert(entry.slug, ext);
-                    })?;
-                }
+            } else {
+                let entry = find_by_name(name)?;
+                install_extension(cacher, &ghidra_version, path, entry).await?;
             }
-
-            return Ok(());
         }
 
         ExtSubcommand::List => {
@@ -375,6 +188,227 @@ pub(crate) async fn handle_ext_cmd(
                 let entry = toml::from_slice::<ExtDef>(e.as_file().unwrap().contents())?;
                 info!("- {}", entry.name);
             }
+        }
+    }
+
+    Ok(())
+}
+
+pub async fn install_extension(
+    cacher: &mut Cacher,
+    ghidra_version: &str,
+    path: &Path,
+    entry: ExtDef,
+) -> anyhow::Result<()> {
+    let ghidra_ent = cacher.cache.entries.get(ghidra_version).unwrap();
+    if ghidra_ent.extensions.contains_key(&entry.slug) {
+        error!("That extension is already installed");
+        return Ok(());
+    }
+
+    match entry.kind {
+        ExtKind::DownloadAndExtract => {
+            info!("Installing download only extension");
+            let octocrab = octocrab::instance();
+
+            let rel = octocrab
+                .repos(entry.repo_user, entry.repo_repo)
+                .releases()
+                .get_latest()
+                .await?;
+
+            let asset = rel
+                .assets
+                .first()
+                .context("This tag doesn't have an asset attached")?;
+            let url = asset.browser_download_url.clone();
+
+            info!("Downloading: {} -> {}", &url, asset.name);
+
+            let dl_path = path.join(asset.name.as_str());
+
+            let mut hdr = HeaderMap::new();
+            hdr.insert(
+                reqwest::header::USER_AGENT.as_str(),
+                HeaderValue::from_str("gvm")?,
+            );
+            let downloader = Downloader::builder()
+                .directory(path)
+                .headers(hdr)
+                .retries(3)
+                .build();
+            let res = downloader
+                .download(&[Download::builder()
+                    .url(url)?
+                    .filename_override(&asset.name)
+                    .build()])
+                .await;
+
+            let status = res.first().unwrap().status();
+            match status {
+                // Download done
+                Status::Success => {}
+                // Cached
+                Status::Skipped(_) => {}
+                Status::Fail(s) => return Err(anyhow!("Download failed: {:?}", s)),
+                _ => return Err(anyhow!("Download failed: {:?}", status)),
+            }
+
+            // Extract the extension zip
+            let extract_zip_file = OpenOptions::new()
+                .read(true)
+                .open(&dl_path)
+                .context("Failed to open the extension zip we just downloaded")?;
+
+            let extension_path = ghidra_ent
+                .extensions_path()
+                .context("Failed to get extensions directory")?;
+
+            let mut z = ZipArchive::new(extract_zip_file).context("Failed to open zip")?;
+            // Find the name of the root directory that will be created when we extract
+            let root = z
+                .root_dir(root_dir_common_filter)
+                .context("Failed to get root directory of extension zip")?
+                .context("No root directory in extension zip, this isn't allowed")?
+                .file_name()
+                .context("Failed to get file name")?
+                .to_string_lossy()
+                .to_string();
+            let root_path = extension_path.join(PathBuf::from(root));
+
+            z.extract(extension_path).context("Failed to extract zip")?;
+
+            cacher.with_cache(|c| {
+                let ent = c.entries.get_mut(ghidra_version).unwrap();
+                ent.extensions.insert(
+                    entry.slug,
+                    ExtEntry {
+                        files: vec![dl_path, root_path],
+                    },
+                );
+            })?;
+        }
+        ExtKind::ProcessorGit => {
+            info!("Installing git processor extension");
+
+            let platform = entry.platform.unwrap_or(Platform::Github);
+
+            let url = match platform {
+                Platform::Github => Url::parse(&format!(
+                    "https://api.github.com/repos/{}/{}/tarball/{}",
+                    entry.repo_user,
+                    entry.repo_repo,
+                    entry.branch_name.unwrap_or("master".to_string())
+                ))?,
+                Platform::Codeberg => Url::parse(&format!(
+                    "https://codeberg.org/{}/{}/archive/{}.tar.gz",
+                    entry.repo_user,
+                    entry.repo_repo,
+                    entry.branch_name.unwrap_or("master".to_string())
+                ))?,
+            };
+
+            let file_name = format!("{}.tar.gz", entry.slug);
+            let dl_path = path.join(&file_name);
+            debug!("DL path: {:?}", dl_path);
+
+            info!("Saving to: {}", dl_path.as_path().display());
+
+            let mut hdr = HeaderMap::new();
+            hdr.insert(
+                reqwest::header::USER_AGENT.as_str(),
+                HeaderValue::from_str("gvm")?,
+            );
+            let downloader = Downloader::builder().headers(hdr).directory(path).build();
+            let res = downloader
+                .download(&[Download::builder()
+                    .url(url)?
+                    .filename_override(&file_name)
+                    .build()])
+                .await;
+
+            let status = res.first().unwrap().status();
+            match status {
+                // Download done
+                Status::Success => {}
+                // Cached
+                Status::Skipped(_) => {}
+                Status::Fail(s) => return Err(anyhow!("Download failed: {:?}", s)),
+                _ => return Err(anyhow!("Download failed: {:?}", status)),
+            }
+
+            info!("Download done");
+
+            // dec
+            let bytes = std::fs::read(dl_path)?;
+            let d = GzDecoder::new(&*bytes);
+
+            let mut a = Archive::new(d);
+
+            let cache_ent = match cacher.cache.entries.get(ghidra_version) {
+                Some(e) => e,
+                None => {
+                    error!("Version {ghidra_version} isn't known");
+                    return Err(anyhow!("Failed to fetch version"));
+                }
+            };
+
+            let base = cache_ent.path.clone();
+            let base = base.join("Ghidra/Processors");
+
+            // let root = a.entries().it
+
+            info!("Extracting");
+
+            let mut tmp = String::new();
+
+            let mut ext = ExtEntry::default();
+            ext.files.push(base.join(&entry.name));
+            info!("files: {:?}", ext.files);
+
+            for file in a.entries()? {
+                let mut file = file?;
+                let out_path = file.header().path()?;
+
+                if tmp.is_empty() {
+                    if entry.no_prefix.unwrap_or_default() {
+                        if file.header().entry_type() == EntryType::Directory {
+                            tmp = out_path.to_string_lossy().to_string();
+                        }
+                    } else if out_path.ends_with(format!("{}/", entry.name)) {
+                        tmp = out_path.to_string_lossy().to_string();
+                    }
+
+                    continue;
+                }
+
+                // println!("ext {:?}", out_path);
+
+                if file.header().entry_type() == EntryType::Regular {
+                    let out_path = file.header().path()?;
+                    let out_path = out_path.to_string_lossy().to_string();
+                    if !out_path.starts_with(&tmp) {
+                        continue;
+                    }
+                    let out_path = out_path.replace(&tmp, &format!("{}/", entry.name.as_str()));
+                    let out_path = base.join(&out_path);
+
+                    let _ = std::fs::create_dir_all(out_path.parent().unwrap());
+
+                    let mut out = Vec::new();
+                    file.read_to_end(&mut out)?;
+                    std::fs::write(&out_path, &out)?;
+
+                    info!("{}", out_path.display());
+
+                    ext.files.push(out_path);
+                }
+            }
+
+            cacher.with_cache(|c| {
+                let cache_entry = c.entries.get_mut(ghidra_version).unwrap();
+                cache_entry.extensions.insert(entry.slug, ext);
+            })?;
         }
     }
 
