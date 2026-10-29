@@ -164,6 +164,7 @@ pub async fn install_version(
     // On macOS ghidra requires manually building now
     #[cfg(target_os = "macos")]
     {
+        use crate::cache::GhidraVersion;
         let version = GhidraVersion::from_release_name(&dir_name);
         if version.needs_macos_natives_build() {
             info!("⚙️ Building natives");
