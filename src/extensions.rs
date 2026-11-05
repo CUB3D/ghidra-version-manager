@@ -200,10 +200,9 @@ pub async fn install_extension(
     path: &Path,
     entry: ExtDef,
 ) -> anyhow::Result<()> {
-    let ghidra_ent = cacher.cache.entries.get(ghidra_version).unwrap();
+    let ghidra_ent = cacher.cache.entries.get(ghidra_version).context("Failed to find entry")?;
     if ghidra_ent.extensions.contains_key(&entry.slug) {
-        error!("That extension is already installed");
-        return Ok(());
+        return Err(anyhow!("That extension is already installed"));
     }
 
     match entry.kind {
@@ -279,7 +278,7 @@ pub async fn install_extension(
             z.extract(extension_path).context("Failed to extract zip")?;
 
             cacher.with_cache(|c| {
-                let ent = c.entries.get_mut(ghidra_version).unwrap();
+                let ent = c.entries.get_mut(ghidra_version).expect("Failed to find entry");
                 ent.extensions.insert(
                     entry.slug,
                     ExtEntry {
@@ -406,7 +405,7 @@ pub async fn install_extension(
             }
 
             cacher.with_cache(|c| {
-                let cache_entry = c.entries.get_mut(ghidra_version).unwrap();
+                let cache_entry = c.entries.get_mut(ghidra_version).expect("Failed to find entry");
                 cache_entry.extensions.insert(entry.slug, ext);
             })?;
         }

@@ -151,13 +151,18 @@ async fn main() -> anyhow::Result<()> {
     let cache_path = path.join("cache.toml");
     let mut cacher = Cacher::load(cache_path)?;
 
+    // Update if > 18h have passed and updates are allowed.
+    // If we don't have a latest version yet, always update.
+    // Never update offline
     let mut update_results = UpdateCheckResults::default();
-    if args.cmd.allow_update_check()
-        && Utc::now()
-            .signed_duration_since(cacher.cache.last_update_check)
-            .num_hours()
-            > 18
-        || cacher.cache.latest_known.is_empty()
+    if !args.offline && (
+            args.cmd.allow_update_check()
+            && Utc::now()
+                .signed_duration_since(cacher.cache.last_update_check)
+                .num_hours()
+                > 18
+            || cacher.cache.latest_known.is_empty()
+        )
     {
         update_known_versions(&mut cacher).await?;
         update_results = update_checker::do_update_check(&mut cacher, &args).await?;
@@ -314,7 +319,7 @@ async fn main() -> anyhow::Result<()> {
             PrefsSubCmd::Set { key, value } => match key.as_str() {
                 "py3" => {
                     if !["true", "false"].contains(&value.as_str()) {
-                        error!("Supported values: true | false");
+                        return Err(anyhow::anyhow!("Supported values: true | false"));
                     }
                     cacher.with_cache(|c: &mut cache::Cache| {
                         c.prefs.pyghidra = *value == "true";
@@ -338,7 +343,9 @@ async fn main() -> anyhow::Result<()> {
                             value.parse::<bool>().expect("Failed to parse as bool");
                     })?;
                 }
-                _ => error!("Unknown key"),
+                _ => {
+                    return Err(anyhow::anyhow!("Unknown key '{key}'"));
+                },
             },
         },
         Cmd::Uninstall { tag } => {
@@ -416,15 +423,15 @@ async fn main() -> anyhow::Result<()> {
                 c.last_launched = tag.clone();
             })?;
 
-            let entry = cacher.cache.entries.get(&tag).unwrap();
+            let entry = cacher.cache.entries.get(&tag).context("Failed to find entry")?;
 
             // Check for compatible java version
             if let Some(java_version) = entry.get_version().min_java_version() {
                 let out = Command::new("java").arg("--version").output()?;
                 let out = String::from_utf8(out.stdout)?;
-                let out = out.split(" ").nth(1).unwrap();
+                let out = out.split(" ").nth(1).context("Failed to parse java version")?;
                 let mut parts = out.split(".");
-                let maj = parts.next().unwrap().parse::<u32>()?;
+                let maj = parts.next().unwrap().parse::<u32>().context("Failed to parse java version")?;
 
                 if maj < java_version {
                     warn!(
