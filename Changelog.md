@@ -65,3 +65,6 @@
 - Added a warning to highlight if you try to launch a Ghidra version that needs a newer version of java than you have installed
 - Extension repo updated
 - When starting with pyGhidra for the first time, respond to the venv creation prompts to prevent a hang
+
+# 0.9.1 (unreleased)
+- Added -py flag to run with pyGhidra bypassing prefs

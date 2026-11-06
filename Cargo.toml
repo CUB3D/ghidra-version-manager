@@ -1,6 +1,6 @@
 [package]
 name = "ghidra-version-manager"
-version = "0.9.0"
+version = "0.9.1"
 edition = "2024"
 authors = ["CUB3D <callumthom11@gmail.com>"]
 license = "GPL-3.0-only"
@@ -24,15 +24,15 @@ tracing = { version = "=0.1.44", default-features = false, features = ["std"] }
 clap = { version = "=4.6.7", default-features = false, features = ["derive", "std", "color", "error-context", "unicode", "usage", "suggestions", "help", "deprecated"] }
 anyhow = { version = "=1.0.104", default-features = false, features = ["std", "backtrace"] }
 reqwest = { version = "=0.13.5", default-features = false, features = ["stream", "rustls", "gzip", "deflate", "brotli", "zstd"] }
-zip = { version = "=8.6.0", default-features = false, features = ["deflate"] }
-toml = { version = "=1.1.8", default-features = false, features = ["std", "display", "parse", "serde"] }
+zip = { version = "=9.4.1", default-features = false, features = ["deflate"] }
+toml = { version = "=1.2.1", default-features = false, features = ["std", "display", "parse", "serde"] }
 serde = { version = "=1.0.229", default-features = false, features = ["derive", "std"]}
 chrono = { version = "=0.4.45" }
 notify-rust = { version = "=4.18.2" }
 trauma = { version = "=3.0.0" }
 
 include_directory = {version = "=0.1.1", default-features = false, features = ["glob"]}
-flate2 = {version = "=1.1.10", default-features = false, features = ["zlib-rs"]}
+flate2 = {version = "=1.1.11", default-features = false, features = ["zlib-rs"]}
 tar = {version = "=0.4.46", default-features = false, features = []}
 ico = {version = "=0.6.0", default-features = false, features = [] }
 iced = { version = "=0.14.0", default-features = false, features = ["x11", "wayland", "wgpu", "tiny-skia", "smol"]}

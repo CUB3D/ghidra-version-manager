@@ -22,6 +22,10 @@ pub enum Cmd {
     Run {
         /// Override the version to run
         tag: Option<String>,
+
+        /// Use pyGhidra, overriding default settings
+        #[arg(long, short)]
+        py: bool,
     },
 
     /// Remove a Ghidra version

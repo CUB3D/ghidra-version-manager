@@ -155,14 +155,13 @@ async fn main() -> anyhow::Result<()> {
     // If we don't have a latest version yet, always update.
     // Never update offline
     let mut update_results = UpdateCheckResults::default();
-    if !args.offline && (
-            args.cmd.allow_update_check()
+    if !args.offline
+        && (args.cmd.allow_update_check()
             && Utc::now()
                 .signed_duration_since(cacher.cache.last_update_check)
                 .num_hours()
                 > 18
-            || cacher.cache.latest_known.is_empty()
-        )
+            || cacher.cache.latest_known.is_empty())
     {
         update_known_versions(&mut cacher).await?;
         update_results = update_checker::do_update_check(&mut cacher, &args).await?;
@@ -345,7 +344,7 @@ async fn main() -> anyhow::Result<()> {
                 }
                 _ => {
                     return Err(anyhow::anyhow!("Unknown key '{key}'"));
-                },
+                }
             },
         },
         Cmd::Uninstall { tag } => {
@@ -399,7 +398,7 @@ async fn main() -> anyhow::Result<()> {
                 error!("Ghidra '{tag}' isn't installed");
             }
         }
-        Cmd::Run { tag } => {
+        Cmd::Run { tag, py } => {
             let tag = match tag {
                 Some(tag) => match tag.as_str() {
                     "default" => cacher.default_explicit(),
@@ -423,15 +422,26 @@ async fn main() -> anyhow::Result<()> {
                 c.last_launched = tag.clone();
             })?;
 
-            let entry = cacher.cache.entries.get(&tag).context("Failed to find entry")?;
+            let entry = cacher
+                .cache
+                .entries
+                .get(&tag)
+                .context("Failed to find entry")?;
 
             // Check for compatible java version
             if let Some(java_version) = entry.get_version().min_java_version() {
                 let out = Command::new("java").arg("--version").output()?;
                 let out = String::from_utf8(out.stdout)?;
-                let out = out.split(" ").nth(1).context("Failed to parse java version")?;
+                let out = out
+                    .split(" ")
+                    .nth(1)
+                    .context("Failed to parse java version")?;
                 let mut parts = out.split(".");
-                let maj = parts.next().unwrap().parse::<u32>().context("Failed to parse java version")?;
+                let maj = parts
+                    .next()
+                    .unwrap()
+                    .parse::<u32>()
+                    .context("Failed to parse java version")?;
 
                 if maj < java_version {
                     warn!(
@@ -440,14 +450,16 @@ async fn main() -> anyhow::Result<()> {
                 }
             }
 
+            let use_pyghidra = *py || cacher.cache.prefs.pyghidra;
+
             let path = &entry.path;
-            if cacher.cache.prefs.pyghidra && !entry.get_version().supports_pyghidra() {
+            if use_pyghidra && !entry.get_version().supports_pyghidra() {
                 info!(
                     "Your default prefs are to start with pyGhidra, but this version is too old. Falling back to Jython"
                 );
             }
 
-            let runner = if cacher.cache.prefs.pyghidra && entry.get_version().supports_pyghidra() {
+            let runner = if use_pyghidra && entry.get_version().supports_pyghidra() {
                 if cfg!(target_family = "unix") {
                     path.join("support/pyghidraRun")
                 } else {
